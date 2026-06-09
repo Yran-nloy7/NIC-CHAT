@@ -1,0 +1,10 @@
+{
+  "name": "ai-chat-mvp",
+  "private": true,
+  "scripts": {
+    "dev:app": "pnpm --filter @ai-chat/app dev",
+    "dev:server": "pnpm --filter @ai-chat/server dev",
+    "dev": "pnpm run --parallel dev:server dev:app",
+    "build:sdk": "pnpm --filter @ai-chat/sdk build"
+  }
+}
