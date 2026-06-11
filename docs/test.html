@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>API Test</title></head>
+<body style="background:#111;color:#fff;font-family:monospace;padding:20px">
+<h2>API Test</h2>
+<button onclick="test()">Test PawAPI</button>
+<pre id="out"></pre>
+<script>
+const API_KEY = 'sk-EiMUv0xpSpRk6JJWBZz6Ob7yzx6sKBFXRSaK4HyKjrEqXoS6';
+
+async function test() {
+  const out = document.getElementById('out');
+  out.textContent = 'Sending...\n';
+  const start = Date.now();
+
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: 'say hi in 3 words' }],
+        apiKey: API_KEY,
+        endpoint: 'https://paw.v1chat.cc/v1',
+        model: 'gpt-4o',
+      }),
+    });
+
+    out.textContent += `Status: ${res.status} (${Date.now() - start}ms)\n`;
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let chunks = 0, total = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks++;
+      const text = decoder.decode(value, { stream: true });
+      total += text;
+      out.textContent += `Chunk ${chunks}: ${text.slice(0, 200)}\n`;
+    }
+
+    out.textContent += `\nDone: ${chunks} chunks, ${total.length} chars, ${Date.now() - start}ms`;
+  } catch (e) {
+    out.textContent += `ERROR: ${e.message}`;
+  }
+}
+</script>
+</body></html>

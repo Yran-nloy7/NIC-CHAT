@@ -77,18 +77,24 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       .slice(-20)
       .map(m => ({ role: m.role, content: m.content }));
 
+    // Direct API call (works for GitHub Pages — no proxy needed)
+    const base = (provider.endpoint || 'https://paw.v1chat.cc/v1').replace(/\/+$/, '').replace(/\/v1$/, '');
+    const apiUrl = `${base}/v1/chat/completions`;
+
     try {
-      const response = await fetch('/api/chat', {
+      const response = await fetch(apiUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${provider.apiKey}`,
+        },
         body: JSON.stringify({
+          model: persona.model,
           messages: [
             { role: 'system', content: persona.systemPrompt },
             ...history,
           ],
-          apiKey: provider.apiKey,
-          model: persona.model,
-          endpoint: provider.endpoint,
+          stream: true,
           temperature: persona.temperature,
           max_tokens: persona.maxTokens,
         }),
