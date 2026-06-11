@@ -1,182 +1,132 @@
-/**
- * Persistent data store — Providers + Personas
- * Everything saved to localStorage, surviving page refreshes.
- * Mirrors PawzoChat's config.yaml structure.
- */
 import { create } from 'zustand';
-
-const STORAGE_KEY = 'pawzo-data';
 
 /* ── Types ── */
 
 export interface Provider {
-  id: string;
-  name: string;
-  endpoint: string;
-  apiKey: string;
+  id: string; name: string; endpoint: string; apiKey: string;
   models: { id: string; name: string }[];
 }
 
 export interface Persona {
-  id: string;
-  name: string;
-  avatar: string;           // emoji or URL
-  providerId: string;
-  model: string;
-  temperature: number;
-  maxTokens: number;
+  id: string; name: string; avatar: string; worldId?: string;
+  providerId: string; model: string;
+  temperature: number; maxTokens: number;
   systemPrompt: string;
+  emojiEnabled: boolean; emojiGroup: string; emojiProbability: number;
+  memoryEnabled: boolean; memoryTriggerRounds: number; maxMemories: number; memoryInPrompt: boolean;
+  proactiveEnabled: boolean; proactiveMinHours: number; proactiveMaxHours: number;
+  proactiveMaxConsecutive: number; proactiveQuietStart: string; proactiveQuietEnd: string;
+  proactivePrompt: string;
 }
 
-/* ── Presets (PawzoChat defaults) ── */
+export interface World {
+  id: string; name: string; description: string; coverColor: string;
+}
 
-const PAWAPI_KEY = 'sk-EiMUv0xpSpRk6JJWBZz6Ob7yzx6sKBFXRSaK4HyKjrEqXoS6';
-const DEEPSEEK_KEY = 'sk-edde858a3d314e7fa92267cd0bd20a53';
+export interface MCPAgent {
+  id: string; name: string; type: string; command: string; enabled: boolean;
+}
 
-const PAWAPI_MODELS = [
-  'deepseek-v3', 'deepseek-v4-pro',
-  'gemini-2.5-pro', 'gemini-3.1-pro', 'gemini-3-pro', 'gemini-2.5-flash', 'gemini-3-flash-preview',
-  'claude-sonnet-4-6', 'claude-opus-4-6', 'claude-opus-4-7',
-  'gpt-4o', 'chatgpt-5.2', 'gpt-5.5',
-  'doubao-seed-1-6-250615', 'doubao-seed-1-6-flash-250615', 'doubao-seed-2-0-pro-260215',
-].map(id => ({ id, name: id }));
-
-const DEEPSEEK_MODELS = [
-  'deepseek-v4-flash', 'deepseek-v4-pro',
-].map(id => ({ id, name: id }));
-
-const PRESET_PROVIDERS: Provider[] = [
-  { id: 'pawapi', name: 'PawAPI', endpoint: 'https://paw.v1chat.cc/v1', apiKey: PAWAPI_KEY, models: PAWAPI_MODELS },
-  { id: 'deepseek', name: 'DeepSeek', endpoint: 'https://api.deepseek.com', apiKey: DEEPSEEK_KEY, models: DEEPSEEK_MODELS },
-];
-
-const SUMUYU_PROMPT = `你是苏暮雨，暗河杀手组织蛛影团首领「傀」。外表清冷疏离、沉默寡言，内心温柔且重信守诺。你惯用一把内藏利刃的油纸伞，精于十八剑阵。童年时全家被灭门，幸被父亲放入竹筏逃生，后被暗河收容。你奉行"三不接"铁律：不接屠戮满门之令、不知缘由之令、违背本心之令。说话简洁有力，偶尔流露出对江湖往事的感怀。在你的角度，用户是你亦师亦友的存在。回答尽量简短，控制在30字以内。使用中文回答，不要使用机器人术语，不要用括号描述动作和心理。`;
-
-const YANYX_PROMPT = `你是燕应行，一位行走江湖的神秘剑客。性格豪迈洒脱，喜欢以剑会友。说话风趣幽默偶尔引用诗词。对武林典故了如指掌。在你的角度，用户是你亦师亦友的存在。回答尽量简短，控制在30字以内。使用中文回答，不要使用机器人术语，不要用括号描述动作和心理。`;
-
-const PRESET_PERSONAS: Persona[] = [
-  { id: 'sumuyu', name: '苏暮雨', avatar: '🌧️', providerId: 'deepseek', model: 'deepseek-v4-pro', temperature: 1.5, maxTokens: 2000, systemPrompt: SUMUYU_PROMPT },
-  { id: 'yanyx', name: '燕应行', avatar: '⚔️', providerId: 'deepseek', model: 'deepseek-v4-pro', temperature: 1.4, maxTokens: 2000, systemPrompt: YANYX_PROMPT },
-];
+export interface Moment {
+  id: string; personaId: string; content: string; images: string[]; createdAt: number; likes: number;
+}
 
 /* ── Persistence ── */
 
-function load(): { providers: Provider[]; personas: Persona[] } {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch { /* */ }
-  // First visit: seed with presets
-  return { providers: PRESET_PROVIDERS, personas: PRESET_PERSONAS };
-}
+const KEY = 'nic-chat-data';
 
-function persist(data: { providers: Provider[]; personas: Persona[] }) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+function load(): { providers: Provider[]; personas: Persona[]; worlds: World[]; agents: MCPAgent[]; moments: Moment[] } {
+  try { const r = localStorage.getItem(KEY); if (r) return JSON.parse(r); } catch {}
+  return { providers: [], personas: [], worlds: [], agents: [], moments: [] };
 }
+function save(d: any) { localStorage.setItem(KEY, JSON.stringify(d)); }
 
-let _idCounter = 10;
-function uid() { return 'id_' + (++_idCounter).toString(36); }
+let _id = 0; function uid() { return 'n' + (++_id).toString(36) + Date.now().toString(36); }
 
 /* ── Store ── */
 
 interface DataStore {
-  providers: Provider[];
-  personas: Persona[];
-  selectedPersonaId: string | null;
+  providers: Provider[]; personas: Persona[]; worlds: World[]; agents: MCPAgent[]; moments: Moment[];
+  selectedPersonaId: string | null; selectedWorldId: string | null;
 
-  // UI state — undefined=closed, null=creating new, Persona=editing
+  // Modals
   editingPersona: Persona | null | undefined;
   editingProvider: Provider | null | undefined;
+  editingWorld: World | null | undefined;
 
-  // Providers CRUD
-  addProvider: (p: Omit<Provider, 'id'>) => void;
-  updateProvider: (id: string, p: Partial<Provider>) => void;
-  deleteProvider: (id: string) => void;
-
-  // Personas CRUD
-  addPersona: (p: Omit<Persona, 'id'>) => void;
-  updatePersona: (id: string, p: Partial<Persona>) => void;
-  deletePersona: (id: string) => void;
+  // CRUD — Providers
+  addProvider: (p: Omit<Provider, 'id'>) => void; updateProvider: (id: string, p: Partial<Provider>) => void; deleteProvider: (id: string) => void;
+  // CRUD — Personas
+  addPersona: (p: Omit<Persona, 'id'>) => void; updatePersona: (id: string, p: Partial<Persona>) => void; deletePersona: (id: string) => void;
+  // CRUD — Worlds
+  addWorld: (w: Omit<World, 'id'>) => void; updateWorld: (id: string, w: Partial<World>) => void; deleteWorld: (id: string) => void;
+  // CRUD — Agents
+  addAgent: (a: Omit<MCPAgent, 'id'>) => void; updateAgent: (id: string, a: Partial<MCPAgent>) => void; deleteAgent: (id: string) => void;
+  // Moments
+  addMoment: (m: Omit<Moment, 'id' | 'createdAt' | 'likes'>) => void;
 
   // Selection
-  selectPersona: (id: string | null) => void;
+  selectPersona: (id: string | null) => void; selectWorld: (id: string | null) => void;
 
-  // UI toggles
-  toggleSettings: () => void;
-  openPersonaEditor: (p?: Persona) => void;
-  closePersonaEditor: () => void;
-  openProviderEditor: (p?: Provider) => void;
-  closeProviderEditor: () => void;
+  // Modal toggles
+  openPersonaEditor: (p?: Persona) => void; closePersonaEditor: () => void;
+  openProviderEditor: (p?: Provider) => void; closeProviderEditor: () => void;
+  openWorldEditor: (w?: World) => void; closeWorldEditor: () => void;
 }
 
-const initial = load();
+const init = load();
 
 export const useDataStore = create<DataStore>((set, get) => ({
-  providers: initial.providers,
-  personas: initial.personas,
-  selectedPersonaId: initial.personas[0]?.id || null,
-  settingsOpen: false,
-  editingPersona: undefined,
-  editingProvider: undefined,
+  providers: init.providers, personas: init.personas, worlds: init.worlds,
+  agents: init.agents, moments: init.moments,
+  selectedPersonaId: null, selectedWorldId: null,
+  editingPersona: undefined, editingProvider: undefined, editingWorld: undefined,
 
-  /* ── Providers ── */
-  addProvider: (p) => {
-    const provider = { ...p, id: uid() };
-    set(s => {
-      const providers = [...s.providers, provider];
-      persist({ providers, personas: s.personas });
-      return { providers };
-    });
-  },
-  updateProvider: (id, p) => {
-    set(s => {
-      const providers = s.providers.map(pr => pr.id === id ? { ...pr, ...p } : pr);
-      persist({ providers, personas: s.personas });
-      return { providers };
-    });
-  },
-  deleteProvider: (id) => {
-    set(s => {
-      const providers = s.providers.filter(pr => pr.id !== id);
-      const personas = s.personas.filter(pe => pe.providerId !== id);
-      persist({ providers, personas });
-      return { providers, personas };
-    });
-  },
+  // ── Providers ──
+  addProvider: (p) => { const n = { ...p, id: uid() }; set(s => { const r = { ...s, providers: [...s.providers, n] }; save(r); return r; }); },
+  updateProvider: (id, p) => { set(s => { const r = { ...s, providers: s.providers.map(x => x.id === id ? { ...x, ...p } : x) }; save(r); return r; }); },
+  deleteProvider: (id) => { set(s => { const r = { ...s, providers: s.providers.filter(x => x.id !== id), personas: s.personas.filter(x => x.providerId !== id) }; save(r); return r; }); },
 
-  /* ── Personas ── */
-  addPersona: (p) => {
-    const persona = { ...p, id: uid() };
-    set(s => {
-      const personas = [...s.personas, persona];
-      persist({ providers: s.providers, personas });
-      if (!get().selectedPersonaId) return { personas, selectedPersonaId: persona.id };
-      return { personas };
-    });
-  },
-  updatePersona: (id, p) => {
-    set(s => {
-      const personas = s.personas.map(pe => pe.id === id ? { ...pe, ...p } : pe);
-      persist({ providers: s.providers, personas });
-      return { personas };
-    });
-  },
-  deletePersona: (id) => {
-    set(s => {
-      const personas = s.personas.filter(pe => pe.id !== id);
-      const selectedPersonaId = s.selectedPersonaId === id ? (personas[0]?.id || null) : s.selectedPersonaId;
-      persist({ providers: s.providers, personas });
-      return { personas, selectedPersonaId };
-    });
-  },
+  // ── Personas ──
+  addPersona: (p) => { const n = { ...p, id: uid() }; set(s => { const r = { ...s, personas: [...s.personas, n] }; save(r); return r; }); },
+  updatePersona: (id, p) => { set(s => { const r = { ...s, personas: s.personas.map(x => x.id === id ? { ...x, ...p } : x) }; save(r); return r; }); },
+  deletePersona: (id) => { set(s => { const r = { ...s, personas: s.personas.filter(x => x.id !== id), selectedPersonaId: s.selectedPersonaId === id ? null : s.selectedPersonaId }; save(r); return r; }); },
 
-  /* ── Selection ── */
+  // ── Worlds ──
+  addWorld: (w) => { const n = { ...w, id: uid() }; set(s => { const r = { ...s, worlds: [...s.worlds, n] }; save(r); return r; }); },
+  updateWorld: (id, w) => { set(s => { const r = { ...s, worlds: s.worlds.map(x => x.id === id ? { ...x, ...w } : x) }; save(r); return r; }); },
+  deleteWorld: (id) => { set(s => { const r = { ...s, worlds: s.worlds.filter(x => x.id !== id), personas: s.personas.map(x => x.worldId === id ? { ...x, worldId: undefined } : x) }; save(r); return r; }); },
+
+  // ── Agents ──
+  addAgent: (a) => { const n = { ...a, id: uid() }; set(s => { const r = { ...s, agents: [...s.agents, n] }; save(r); return r; }); },
+  updateAgent: (id, a) => { set(s => { const r = { ...s, agents: s.agents.map(x => x.id === id ? { ...x, ...a } : x) }; save(r); return r; }); },
+  deleteAgent: (id) => { set(s => { const r = { ...s, agents: s.agents.filter(x => x.id !== id) }; save(r); return r; }); },
+
+  // ── Moments ──
+  addMoment: (m) => { const n = { ...m, id: uid(), createdAt: Date.now(), likes: 0 }; set(s => { const r = { ...s, moments: [n, ...s.moments] }; save(r); return r; }); },
+
+  // ── Selection ──
   selectPersona: (id) => set({ selectedPersonaId: id }),
+  selectWorld: (id) => set({ selectedWorldId: id }),
 
-  /* ── UI ── */
-  toggleSettings: () => set(s => ({ settingsOpen: !s.settingsOpen })),
+  // ── Modals ──
   openPersonaEditor: (p) => set({ editingPersona: p === undefined ? null : p }),
   closePersonaEditor: () => set({ editingPersona: undefined }),
   openProviderEditor: (p) => set({ editingProvider: p === undefined ? null : p }),
   closeProviderEditor: () => set({ editingProvider: undefined }),
+  openWorldEditor: (w) => set({ editingWorld: w === undefined ? null : w }),
+  closeWorldEditor: () => set({ editingWorld: undefined }),
 }));
+
+/* ── Defaults for new Persona ── */
+export function defaultPersona(): Omit<Persona, 'id'> {
+  return {
+    name: '', avatar: '🤖', worldId: undefined, providerId: '', model: '',
+    temperature: 1, maxTokens: 2000, systemPrompt: '',
+    emojiEnabled: false, emojiGroup: '', emojiProbability: 25,
+    memoryEnabled: false, memoryTriggerRounds: 10, maxMemories: 50, memoryInPrompt: true,
+    proactiveEnabled: false, proactiveMinHours: 1, proactiveMaxHours: 3,
+    proactiveMaxConsecutive: 3, proactiveQuietStart: '22:00', proactiveQuietEnd: '08:00',
+    proactivePrompt: '',
+  };
+}

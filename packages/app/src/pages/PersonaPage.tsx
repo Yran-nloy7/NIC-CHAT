@@ -1,76 +1,87 @@
-import { useDataStore } from '../store/data';
+import { useState } from 'react';
+import { useDataStore, defaultPersona } from '../store/data';
 import { PersonaEditor } from '../components/PersonaEditor';
 import { Sidebar } from '../components/Sidebar';
 
-const C = { bg: '#FFF5F8', card: '#FFFFFF', border: '#F0D8E0', text: '#4A2C3A', text2: '#8A6070', text3: '#C0A0B0', accent: '#E91E63', accentLight: '#FCE4EC', hover: '#FFF0F5', green: '#4CAF50', greenBg: '#E8F5E9' };
+const C = { bg: '#FFF5F8', card: '#fff', border: '#F0D8E0', text: '#4A2C3A', text2: '#8A6070', text3: '#C0A0B0', accent: '#E91E63', accentBg: '#FCE4EC', hover: '#FFF0F5' };
 
 export function PersonaPage() {
-  const personas = useDataStore(s => s.personas);
-  const providers = useDataStore(s => s.providers);
-  const selectedId = useDataStore(s => s.selectedPersonaId);
-  const selectPersona = useDataStore(s => s.selectPersona);
-  const deletePersona = useDataStore(s => s.deletePersona);
-  const updatePersona = useDataStore(s => s.updatePersona);
-  const addPersona = useDataStore(s => s.addPersona);
-  const editingPersona = useDataStore(s => s.editingPersona);
-  const openPersonaEditor = useDataStore(s => s.openPersonaEditor);
-  const closePersonaEditor = useDataStore(s => s.closePersonaEditor);
+  const personas = useDataStore(s => s.personas); const providers = useDataStore(s => s.providers);
+  const selId = useDataStore(s => s.selectedPersonaId); const select = useDataStore(s => s.selectPersona);
+  const del = useDataStore(s => s.deletePersona); const upd = useDataStore(s => s.updatePersona);
+  const add = useDataStore(s => s.addPersona);
+  const editP = useDataStore(s => s.editingPersona); const openE = useDataStore(s => s.openPersonaEditor);
+  const closeE = useDataStore(s => s.closePersonaEditor);
+  const [search, setSearch] = useState('');
+
+  const filtered = personas.filter(p => !search || p.name.includes(search));
+  const selected = personas.find(p => p.id === selId);
 
   return (
     <>
-      <Sidebar onSelect={selectPersona} onAdd={() => openPersonaEditor()} />
+      <Sidebar onAdd={() => { const d = defaultPersona(); if (providers[0]) { d.providerId = providers[0].id; d.model = providers[0].models[0]?.id || ''; } openE({ ...d, id: '' } as any); }} />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 24px', background: C.card, borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, color: C.text, margin: 0 }}>🎭 角色管理</h2>
-          <button onClick={() => openPersonaEditor()} style={{ background: C.accent, border: 'none', borderRadius: 8, color: '#fff', padding: '8px 18px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>+ 添加角色</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 700, color: C.text, margin: 0 }}>🎭 人设通讯录</h2>
+            <input style={{ background: C.hover, border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px 10px', fontSize: 12, color: C.text, outline: 'none', width: 160 }} placeholder="🔍 搜索..." value={search} onChange={e => setSearch(e.target.value)} />
+          </div>
+          <button onClick={() => { const d = defaultPersona(); if (providers[0]) { d.providerId = providers[0].id; d.model = providers[0].models[0]?.id || ''; } openE({ ...d, id: '' } as any); }} style={{ background: C.accent, border: 'none', borderRadius: 8, color: '#fff', padding: '8px 18px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>+ 添加角色</button>
         </div>
-        <div style={{ flex: 1, overflow: 'auto', padding: 24 }}>
-          {personas.length === 0 && (
-            <div style={{ textAlign: 'center', color: C.text3, marginTop: 80 }}>
-              <div style={{ fontSize: 48, marginBottom: 12 }}>🎭</div>
-              <p>还没有角色，点击上方按钮创建</p>
-            </div>
-          )}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 14 }}>
-            {personas.map(p => {
-              const provider = providers.find(pr => pr.id === p.providerId);
-              const isSelected = p.id === selectedId;
+
+        <div style={{ flex: 1, overflow: 'auto', padding: 24, display: 'flex', gap: 24 }}>
+          {/* List */}
+          <div style={{ width: 280, flexShrink: 0 }}>
+            {filtered.length === 0 && <div style={{ textAlign: 'center', color: C.text3, padding: 40, fontSize: 13 }}>{search ? '无匹配结果' : '还没有角色'}</div>}
+            {filtered.map(p => {
+              const prov = providers.find(pr => pr.id === p.providerId);
               return (
-                <div key={p.id} style={{ background: isSelected ? C.accentLight : C.card, border: isSelected ? `2px solid ${C.accent}` : `1px solid ${C.border}`, borderRadius: 12, padding: 18, display: 'flex', flexDirection: 'column', gap: 10, transition: 'all .15s', boxShadow: '0 1px 3px rgba(0,0,0,.04)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span style={{ fontSize: 32 }}>{p.avatar || '🤖'}</span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 16, fontWeight: 700, color: C.text }}>{p.name}</div>
-                      <div style={{ fontSize: 12, color: C.text2 }}>{provider?.name || '?'} · {p.model}</div>
-                    </div>
-                    {isSelected && <span style={{ background: C.accent, color: '#fff', fontSize: 10, padding: '3px 10px', borderRadius: 10, fontWeight: 600 }}>当前</span>}
-                  </div>
-                  <div style={{ display: 'flex', gap: 18, fontSize: 12, color: C.text2 }}>
-                    <span>🌡️ Temperature: {p.temperature}</span>
-                    <span>📝 Max Tokens: {p.maxTokens}</span>
-                  </div>
-                  <div style={{ background: C.hover, borderRadius: 8, padding: '10px 14px', fontSize: 12, color: C.text2, maxHeight: 80, overflow: 'hidden', lineHeight: 1.6, position: 'relative' }}>
-                    {p.systemPrompt.slice(0, 180)}{p.systemPrompt.length > 180 && '...'}
-                    {p.systemPrompt.length > 80 && <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 30, background: `linear-gradient(transparent, ${C.hover})` }} />}
-                  </div>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button onClick={() => selectPersona(p.id)} style={{ ...btn, background: isSelected ? C.accent : C.accentLight, color: isSelected ? '#fff' : C.accent, flex: 1, fontWeight: 600 }}>{isSelected ? '✓ 已选中' : '选择'}</button>
-                    <button onClick={() => openPersonaEditor(p)} style={btn}>✎ 编辑</button>
-                    <button onClick={() => { if (confirm(`删除「${p.name}」？`)) deletePersona(p.id); }} style={{ ...btn, color: '#E53935' }}>🗑</button>
+                <div key={p.id} onClick={() => select(p.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 8, marginBottom: 4, cursor: 'pointer', background: p.id === selId ? C.accentBg : 'transparent', border: p.id === selId ? `1px solid ${C.accent}44` : '1px solid transparent', transition: 'all .1s' }}>
+                  <span style={{ fontSize: 22 }}>{p.avatar || '🤖'}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{p.name || '未命名'}</div>
+                    <div style={{ fontSize: 10, color: C.text2 }}>{prov?.name || '未绑定'} · {p.model || '未配置'}</div>
                   </div>
                 </div>
               );
             })}
           </div>
+
+          {/* Detail */}
+          <div style={{ flex: 1 }}>
+            {selected ? (
+              <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 24 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
+                  <span style={{ fontSize: 40 }}>{selected.avatar || '🤖'}</span>
+                  <div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: C.text }}>{selected.name}</div>
+                    <div style={{ fontSize: 12, color: C.text2 }}>
+                      {providers.find(pr => pr.id === selected.providerId)?.name || '未绑定'} · {selected.model} · temp {selected.temperature}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ background: C.hover, borderRadius: 8, padding: '14px 16px', fontSize: 12, color: C.text2, lineHeight: 1.7, marginBottom: 20, maxHeight: 200, overflow: 'auto', whiteSpace: 'pre-wrap' }}>{selected.systemPrompt || '(未设置人设提示词)'}</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 12, color: C.text2, marginBottom: 20 }}>
+                  <div>🌡️ Temperature: {selected.temperature}</div><div>📝 Max Tokens: {selected.maxTokens}</div>
+                  <div>😊 表情包: {selected.emojiEnabled ? `开启 (${selected.emojiProbability}%)` : '关闭'}</div>
+                  <div>🧠 记忆: {selected.memoryEnabled ? `开启 (${selected.memoryTriggerRounds}轮/${selected.maxMemories}条)` : '关闭'}</div>
+                  <div>📢 主动消息: {selected.proactiveEnabled ? `开启 (${selected.proactiveMinHours}-${selected.proactiveMaxHours}h)` : '关闭'}</div>
+                  <div>🌍 世界观: {selected.worldId ? (useDataStore.getState().worlds.find(w=>w.id===selected.worldId)?.name||'未知') : '无'}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => select(selected.id)} style={{ ...b, background: C.accent, color: '#fff', border: 'none' }}>{selId === selected.id ? '✓ 当前角色' : '设为当前'}</button>
+                  <button onClick={() => openE(selected)} style={b}>✎ 编辑</button>
+                  <button onClick={() => { if (confirm(`删除「${selected.name}」？`)) del(selected.id); }} style={{ ...b, color: '#E53935' }}>🗑 删除</button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', color: C.text3, padding: 60 }}>👈 从左侧选择一个角色查看详情</div>
+            )}
+          </div>
         </div>
       </div>
-      {editingPersona !== undefined && (
-        <PersonaEditor persona={editingPersona} providers={providers}
-          onSave={data => { if (editingPersona?.id) updatePersona(editingPersona.id, data); else addPersona(data); closePersonaEditor(); }}
-          onCancel={closePersonaEditor} />
-      )}
+      {editP !== undefined && <PersonaEditor persona={editP} onSave={d => { if (editP?.id) upd(editP.id, d); else add(d); closeE(); }} onCancel={closeE} />}
     </>
   );
 }
-
-const btn: React.CSSProperties = { background: '#FFF0F5', border: '1px solid #F0D8E0', borderRadius: 6, color: '#4A2C3A', padding: '6px 12px', cursor: 'pointer', fontSize: 12 };
+const b: React.CSSProperties = { background: '#FFF0F5', border: '1px solid #F0D8E0', borderRadius: 6, color: '#4A2C3A', padding: '7px 16px', cursor: 'pointer', fontSize: 13, fontWeight: 500 };
