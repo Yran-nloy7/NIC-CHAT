@@ -1,0 +1,10 @@
+{
+  "buildCommand": "cd packages/app && npm install && npx vite build",
+  "outputDirectory": "packages/app/dist",
+  "installCommand": "npm install --prefix packages/app",
+  "functions": {
+    "api/chat.js": {
+      "maxDuration": 60
+    }
+  }
+}
