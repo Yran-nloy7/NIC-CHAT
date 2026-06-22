@@ -2,16 +2,47 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  /* ── 按钮体系 ── */
+  .btn-primary {
+    @apply bg-accent text-white px-4 py-2 rounded-lg font-semibold text-sm cursor-pointer hover:bg-accent-dark active:scale-[0.97] transition-all duration-150 shadow-sm;
+  }
+  .btn-secondary {
+    @apply bg-white text-slate-700 px-4 py-2 rounded-lg font-medium text-sm cursor-pointer hover:bg-slate-50 border border-slate-200 active:scale-[0.97] transition-all duration-150;
+  }
+  .btn-ghost {
+    @apply bg-transparent text-slate-500 px-3 py-1.5 rounded-lg text-xs cursor-pointer hover:bg-slate-100 hover:text-slate-700 transition-colors;
+  }
+  .btn-danger {
+    @apply btn-secondary text-red-500 hover:text-red-600 hover:bg-red-50 hover:border-red-200;
+  }
+
+  /* ── 输入框 ── */
+  .input-field {
+    @apply bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 outline-none focus:border-accent focus:ring-2 focus:ring-accent/20 transition-all duration-150 placeholder:text-slate-400;
+  }
+
+  /* ── 卡片 ── */
+  .card {
+    @apply bg-white border border-slate-100 rounded-xl shadow-sm;
+  }
+
+  /* ── 标签 ── */
+  .section-label {
+    @apply text-xs font-semibold text-slate-500 uppercase tracking-wider;
+  }
+  .field-label {
+    @apply text-[11px] text-slate-500 font-semibold mb-[3px] block;
+  }
+}
+
 :root {
-  /* 现代科技感浆果色系统 */
-  --primary: 251 86 126;       /* #fbf57e 的现代高级粉 */
-  --primary-hover: 240 50 100;
-  
-  /* 语义化背景与文本 */
-  --bg-app: 248 250 252;       /* slate-50: 极淡的冷灰底色，告别死白 */
-  --bg-surface: 255 255 255;   /* 纯白面板 */
-  --text-main: 15 23 42;       /* slate-900: 深灰，比纯黑更有质感 */
-  --text-muted: 100 116 139;   /* slate-500: 次要文字 */
+  --primary: 99 102 241;        /* accent indigo-500 */
+  --primary-hover: 79 70 229;   /* indigo-600 */
+  --bg-app: 248 250 252;        /* slate-50 */
+  --bg-surface: 255 255 255;    /* white */
+  --text-main: 15 23 42;        /* slate-900 */
+  --text-muted: 100 116 139;    /* slate-500 */
 }
 
 body {
@@ -22,25 +53,46 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* 全局滚动条高定（大厂极其看重这种细节） */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.1);
-  border-radius: 99px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.2);
+/* ── 滚动条 ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.08); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.15); }
+
+/* ── 毛玻璃 ── */
+.glass-panel {
+  background: rgba(255,255,255,0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255,0.5);
 }
 
-/* 现代毛玻璃卡片基础类 */
-.glass-panel {
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
+/* ── 消息进入动画 ── */
+@keyframes msgIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
+.msg-anim { animation: msgIn 0.25s ease-out; }
+
+/* ── 光标闪烁 ── */
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+.cursor { display: inline-block; width: 2px; height: 16px; background: var(--primary); margin-left: 2px; animation: blink 0.8s infinite; vertical-align: text-bottom; }
+
+/* ── Markdown 渲染 ── */
+.md-render p              { margin: 0.4em 0; }
+.md-render p:first-child  { margin-top: 0; }
+.md-render p:last-child   { margin-bottom: 0; }
+.md-render strong         { font-weight: 600; color: inherit; }
+.md-render em             { font-style: italic; }
+.md-render code           { background: #f1f5f9; color: #6366F1; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; font-family: 'SF Mono', 'Fira Code', monospace; }
+.md-render pre            { background: #1e293b; color: #e2e8f0; padding: 12px 16px; border-radius: 10px; overflow-x: auto; margin: 0.5em 0; font-size: 13px; line-height: 1.5; }
+.md-render pre code       { background: none; color: inherit; padding: 0; border-radius: 0; font-size: inherit; }
+.md-render blockquote     { border-left: 3px solid #6366F1; padding-left: 12px; color: #64748b; margin: 0.5em 0; }
+.md-render h1,.md-render h2,.md-render h3 { margin: 0.8em 0 0.4em; font-weight: 600; }
+.md-render h1 { font-size: 1.3em; }
+.md-render h2 { font-size: 1.15em; }
+.md-render h3 { font-size: 1.05em; }
+.md-render li { margin-left: 1.2em; }
+.md-render table            { border-collapse: collapse; width: 100%; margin: 0.5em 0; }
+.md-render th,.md-render td { border: 1px solid #e2e8f0; padding: 6px 10px; text-align: left; font-size: 13px; }
+.md-render th               { background: #f8fafc; font-weight: 600; }

@@ -24,14 +24,14 @@ export function renderMd(text: string): string {
 
 interface ChatStore {
   messages: Message[]; isStreaming: boolean;
-  sendMessage: (text: string) => Promise<void>;
+  sendMessage: (text: string, systemPromptAddon?: string) => Promise<void>;
   clearMessages: () => void;
 }
 
 export const useChatStore = create<ChatStore>((set, get) => ({
   messages: [], isStreaming: false,
 
-  sendMessage: async (text: string) => {
+  sendMessage: async (text: string, systemPromptAddon?: string) => {
     const data = useDataStore.getState();
     const persona = data.personas.find(p => p.id === data.selectedPersonaId);
     if (!persona) { set(s => ({ messages: [...s.messages, mkErr('请先在左侧选择或创建一个角色')] })); return; }
@@ -48,11 +48,13 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     const base = (provider.endpoint || '').replace(/\/+$/,'').replace(/\/v1$/,'');
     const apiUrl = `${base}/v1/chat/completions`;
 
+    const systemContent = (systemPromptAddon ? systemPromptAddon + '\n\n' : '') + persona.systemPrompt;
+
     try {
       const res = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${provider.apiKey}` },
-        body: JSON.stringify({ model: persona.model, messages: [{ role: 'system', content: persona.systemPrompt }, ...history], stream: true, temperature: persona.temperature, max_tokens: persona.maxTokens }),
+        body: JSON.stringify({ model: persona.model, messages: [{ role: 'system', content: systemContent }, ...history], stream: true, temperature: persona.temperature, max_tokens: persona.maxTokens }),
       });
       if (!res.ok) {
         let msg = `API 错误 ${res.status}`;
