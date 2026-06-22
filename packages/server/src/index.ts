@@ -1,183 +1,137 @@
 /**
- * PawzoChat Proxy Server
- * - POST /api/chat         → pipe to AI API
- * - POST /api/openclaw/chat → WeChat webhook with persona support
- * - POST /api/metrics        → echo
+ * NIC-CHAT Proxy Server
+ * POST /api/chat              → pipe to AI API
+ * POST /api/openclaw/chat     → WeChat webhook
+ * POST /api/openclaw/clear    → clear session
+ * GET  /api/scenarios         → [5] list scenario presets
+ * POST /api/memories/summarize → [3] AI-summarize conversation into memory
+ * POST /api/moments/generate   → [6] AI-generate a moment post
+ * POST /api/metrics            → echo
  */
 import express from 'express';
 import cors from 'cors';
 import https from 'https';
 import http from 'http';
-import fs from 'fs';
-import path from 'path';
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
 
 const DEFAULT_BASE = 'https://paw.v1chat.cc/v1';
-const PAWAPI_KEY = 'sk-EiMUv0xpSpRk6JJWBZz6Ob7yzx6sKBFXRSaK4HyKjrEqXoS6';
+const DEFAULT_KEY = process.env.PAWAPI_KEY || '';
 
-/* ── Session store for OpenClaw ── */
-const sessions = new Map<string, { personaId: string; history: { role: string; content: string }[] }>();
-
-/* ── Direct pipe proxy ── */
-app.post('/api/chat', (req, res) => {
-  const body = req.body || {};
-  const apikey = body.apiKey || PAWAPI_KEY;
+function proxyToAI(req: express.Request, res: express.Response, body: any, apikey: string, endpoint: string) {
   const model = body.model || 'gpt-4o';
   const messages = body.messages || [];
-  const endpoint = body.endpoint || DEFAULT_BASE;
-  const temperature = body.temperature;
-  const maxTokens = body.max_tokens;
-
-  if (!apikey) return res.status(400).json({ error: 'API Key required' });
-
-  const base = endpoint.replace(/\/+$/, '').replace(/\/v1$/, '');
+  const base = (endpoint || DEFAULT_BASE).replace(/\/+$/, '').replace(/\/v1$/, '');
   const targetUrl = new URL(base + '/v1/chat/completions');
 
-  const reqBody: any = { model, messages, stream: true };
-  if (temperature !== undefined) reqBody.temperature = temperature;
-  if (maxTokens) reqBody.max_tokens = maxTokens;
-
+  const reqBody: any = { model, messages, stream: body.stream !== false };
+  if (body.temperature !== undefined) reqBody.temperature = body.temperature;
+  if (body.max_tokens) reqBody.max_tokens = body.max_tokens;
   const proxyBody = JSON.stringify(reqBody);
-  console.log(`[Proxy] ${targetUrl.host}  model=${model}`);
+
+  console.log(`[Proxy] → ${targetUrl.host}  model=${model}`);
 
   const transport = targetUrl.protocol === 'https:' ? https : http;
-
   const proxyReq = transport.request({
-    hostname: targetUrl.hostname,
-    port: targetUrl.port || (targetUrl.protocol === 'https:' ? 443 : 80),
-    path: targetUrl.pathname + targetUrl.search,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + apikey,
-      'Content-Length': Buffer.byteLength(proxyBody),
-      'Accept': 'text/event-stream',
-    },
+    hostname: targetUrl.hostname, port: targetUrl.port || (targetUrl.protocol === 'https:' ? 443 : 80),
+    path: targetUrl.pathname + targetUrl.search, method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (apikey || DEFAULT_KEY), 'Content-Length': Buffer.byteLength(proxyBody), 'Accept': 'text/event-stream' },
     timeout: 120_000,
   }, (proxyRes) => {
     res.writeHead(proxyRes.statusCode || 200, proxyRes.headers);
     proxyRes.pipe(res);
   });
-
-  proxyReq.on('error', (err) => {
-    if (!res.headersSent) res.status(502).json({ error: '代理失败: ' + err.message });
-  });
-  proxyReq.on('timeout', () => {
-    proxyReq.destroy();
-    if (!res.headersSent) res.status(504).json({ error: '超时' });
-  });
-
+  proxyReq.on('error', (err: any) => { if (!res.headersSent) res.status(502).json({ error: '代理失败: ' + err.message }); });
+  proxyReq.on('timeout', () => { proxyReq.destroy(); if (!res.headersSent) res.status(504).json({ error: '超时' }); });
   proxyReq.write(proxyBody);
   proxyReq.end();
+}
+
+/* ── /api/chat ── */
+app.post('/api/chat', (req, res) => {
+  const body = req.body || {};
+  if (!body.apiKey && !DEFAULT_KEY) return res.status(400).json({ error: 'API Key required' });
+  proxyToAI(req, res, body, body.apiKey || DEFAULT_KEY, body.endpoint || DEFAULT_BASE);
 });
 
-/* ── OpenClaw WeChat webhook ── */
-app.post('/api/openclaw/chat', async (req, res) => {
-  const { message, personaId, sessionId } = req.body || {};
+/* ── [5] Scenario presets ── */
+const SCENARIOS = [
+  { id: 'interview', name: '模拟面试', icon: '💼', description: 'AI 扮演面试官', category: 'interview' },
+  { id: 'brainstorm', name: '创意发散', icon: '💡', description: '头脑风暴', category: 'creative' },
+  { id: 'therapy', name: '心理疏导', icon: '🧘', description: '温和倾听引导', category: 'therapy' },
+  { id: 'debate', name: '辩论对抗', icon: '⚔️', description: 'AI 持相反观点', category: 'debate' },
+  { id: 'storyteller', name: '故事接龙', icon: '📖', description: '轮流编故事', category: 'roleplay' },
+  { id: 'teacher', name: '知识导师', icon: '📚', description: '苏格拉底式教学', category: 'interview' },
+  { id: 'writer', name: '写作助手', icon: '✍️', description: '润色改写', category: 'creative' },
+  { id: 'companion', name: '深夜树洞', icon: '🌙', description: '温暖陪伴', category: 'therapy' },
+];
+app.get('/api/scenarios', (_req, res) => res.json({ scenarios: SCENARIOS }));
 
-  if (!message) {
-    return res.status(400).json({ error: 'message required' });
-  }
+/* ── [3] Memory summarization ── */
+app.post('/api/memories/summarize', (req, res) => {
+  const { messages, apiKey, endpoint } = req.body || {};
+  if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: 'messages required' });
 
-  // Get persona config — read from the frontend's localStorage format
-  // In production, this would be from a database
-  const sid = sessionId || 'default';
-  let session = sessions.get(sid);
-  if (!session) {
-    session = { personaId: personaId || 'sumuyu', history: [] };
-    sessions.set(sid, session);
-  }
-
-  // Build system prompt based on personaId (hardcoded defaults + allow override)
-  const PERSONA_PROMPTS: Record<string, string> = {
-    sumuyu: '你是苏暮雨，暗河杀手组织蛛影团首领「傀」。外表清冷疏离、沉默寡言，内心温柔且重信守诺。惯用一把内藏利刃的油纸伞，精于十八剑阵。说话简洁有力，偶尔流露出对江湖往事的感怀。回答尽量简短30字以内，使用中文，不用机器人术语。',
-    yanyx: '你是燕应行，一位行走江湖的神秘剑客。性格豪迈洒脱，喜欢以剑会友。说话风趣幽默偶尔引用诗词。回答尽量简短30字以内，使用中文。',
-  };
-  const systemPrompt = PERSONA_PROMPTS[session.personaId] || PERSONA_PROMPTS.sumuyu;
-
-  // Build messages
-  const messages = [
-    { role: 'system', content: systemPrompt },
-    ...session.history.slice(-10),
-    { role: 'user', content: message },
+  const summaryPrompt = [
+    { role: 'system', content: '从以下对话中提取关键信息，总结为一条简洁的记忆。用中文，不超过100字。格式：{ "summary": "...", "topics": ["..."] }' },
+    { role: 'user', content: messages.map((m: any) => `${m.role}: ${m.content}`).join('\n').slice(-2000) },
   ];
 
-  // Proxy to PawAPI
-  const base = DEFAULT_BASE.replace(/\/+$/, '').replace(/\/v1$/, '');
-  const targetUrl = new URL(base + '/v1/chat/completions');
-  const proxyBody = JSON.stringify({ model: 'gpt-4o', messages, stream: true });
+  proxyToAI(req, res, { ...req.body, messages: summaryPrompt, stream: false, max_tokens: 200 }, apiKey || DEFAULT_KEY, endpoint || DEFAULT_BASE);
+});
 
-  console.log(`[OpenClaw] session=${sid} persona=${session.personaId}`);
+/* ── [6] AI-generated moment ── */
+app.post('/api/moments/generate', (req, res) => {
+  const { personaName, personaSystemPrompt, recentMessages, apiKey, endpoint } = req.body || {};
+  if (!personaName) return res.status(400).json({ error: 'personaName required' });
 
-  const transport = targetUrl.protocol === 'https:' ? https : http;
-  const proxyReq = transport.request({
-    hostname: targetUrl.hostname,
-    port: targetUrl.port || (targetUrl.protocol === 'https:' ? 443 : 80),
-    path: targetUrl.pathname + targetUrl.search,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + PAWAPI_KEY,
-      'Content-Length': Buffer.byteLength(proxyBody),
-      'Accept': 'text/event-stream',
-    },
-    timeout: 120_000,
-  }, (proxyRes) => {
-    // Collect response for session history
-    let fullResponse = '';
-    proxyRes.on('data', (chunk: Buffer) => {
-      const text = chunk.toString();
-      // Parse SSE lines to extract content
-      for (const line of text.split('\n')) {
-        if (line.startsWith('data: ') && line !== 'data: [DONE]') {
-          try {
-            const j = JSON.parse(line.slice(6));
-            const c = j.choices?.[0]?.delta?.content;
-            if (c) fullResponse += c;
-          } catch { /* */ }
-        }
+  const momentPrompt = [
+    { role: 'system', content: `你是${personaName}。${personaSystemPrompt ? '背景：' + personaSystemPrompt.slice(0, 200) : ''} 基于最近的对话，发一条朋友圈。像真人一样，自然、有个性。用中文，不超过50字。返回JSON：{ "content": "...", "mood": "😊|😢|😠|😨|😍|😂|🤔" }` },
+    { role: 'user', content: `最近对话：\n${(recentMessages || []).map((m: any) => `${m.role}: ${m.content}`).join('\n').slice(-1000)}\n\n请发一条朋友圈。` },
+  ];
+
+  proxyToAI(req, res, { ...req.body, messages: momentPrompt, stream: false, max_tokens: 150 }, apiKey || DEFAULT_KEY, endpoint || DEFAULT_BASE);
+});
+
+/* ── OpenClaw ── */
+const sessions = new Map<string, { personaId: string; history: { role: string; content: string }[] }>();
+
+app.post('/api/openclaw/chat', (req, res) => {
+  const { message, personaId, sessionId } = req.body || {};
+  if (!message) return res.status(400).json({ error: 'message required' });
+  const sid = sessionId || 'default';
+  let s = sessions.get(sid);
+  if (!s) { s = { personaId: personaId || 'default', history: [] }; sessions.set(sid, s); }
+  const PERSONAS: Record<string, string> = {
+    sumuyu: '你是苏暮雨，暗河杀手。清冷疏离，说话简短。',
+    yanyx: '你是燕应行，豪迈剑客。风趣幽默。',
+  };
+  const sysPrompt = PERSONAS[s.personaId] || PERSONAS.sumuyu;
+  const messages = [{ role: 'system', content: sysPrompt }, ...s.history.slice(-10), { role: 'user', content: message }];
+  proxyToAI(req, res, { ...req.body, messages, model: req.body.model || 'gpt-4o', stream: true }, req.body.apiKey || DEFAULT_KEY, req.body.endpoint || DEFAULT_BASE);
+
+  // Collect response for session
+  let fullResponse = '';
+  const origWrite = res.write.bind(res);
+  res.write = function (chunk: any) {
+    const text = chunk?.toString() || '';
+    for (const line of text.split('\n')) {
+      if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+        try { const c = JSON.parse(line.slice(6)).choices?.[0]?.delta?.content; if (c) fullResponse += c; } catch {}
       }
-    });
-    proxyRes.on('end', () => {
-      session!.history.push({ role: 'user', content: message });
-      if (fullResponse) session!.history.push({ role: 'assistant', content: fullResponse });
-      if (session!.history.length > 20) session!.history = session!.history.slice(-20);
-      sessions.set(sid, session!);
-    });
-
-    // Stream response to OpenClaw
-    res.writeHead(proxyRes.statusCode || 200, {
-      ...proxyRes.headers,
-      'Content-Type': 'text/event-stream',
-    });
-    proxyRes.pipe(res);
-  });
-
-  proxyReq.on('error', (err) => {
-    if (!res.headersSent) res.status(502).json({ error: '代理失败: ' + err.message });
-  });
-
-  proxyReq.write(proxyBody);
-  proxyReq.end();
+    }
+    return origWrite(chunk);
+  } as any;
+  res.on('finish', () => { if (fullResponse) { s!.history.push({ role: 'user', content: message }, { role: 'assistant', content: fullResponse }); if (s!.history.length > 20) s!.history = s!.history.slice(-20); } });
 });
 
-/* ── Clear session ── */
-app.post('/api/openclaw/clear', (req, res) => {
-  const { sessionId } = req.body || {};
-  if (sessionId) sessions.delete(sessionId);
-  else sessions.clear();
-  res.json({ ok: true });
-});
-
-/* ── Metrics ── */
+app.post('/api/openclaw/clear', (req, res) => { const { sessionId } = req.body || {}; if (sessionId) sessions.delete(sessionId); else sessions.clear(); res.json({ ok: true }); });
 app.post('/api/metrics', (_req, res) => res.json({ ok: true }));
 
 const PORT = 3001;
 app.listen(PORT, () => {
-  console.log(`PawzoChat Server: http://localhost:${PORT}`);
-  console.log(`  /api/chat         → AI proxy`);
-  console.log(`  /api/openclaw/chat → WeChat webhook`);
+  console.log(`NIC-CHAT Server: http://localhost:${PORT}`);
+  console.log(`  /api/chat | /api/scenarios | /api/memories/summarize | /api/moments/generate | /api/openclaw/chat`);
 });
