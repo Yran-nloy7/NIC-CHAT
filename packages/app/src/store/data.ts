@@ -1,200 +1,328 @@
 import { create } from 'zustand';
 
-/* ── Types ── */
+export interface ProviderModel {
+  id: string;
+  name: string;
+  capabilities?: string[];
+  contextWindow?: number;
+  maxOutput?: number;
+  billingType?: 'token' | 'request' | 'quota' | 'free' | 'unknown';
+  inputPrice?: string;
+  outputPrice?: string;
+  requestPrice?: string;
+  quotaNote?: string;
+  enabled?: boolean;
+  note?: string;
+}
 
 export interface Provider {
-  id: string; name: string; endpoint: string; apiKey: string;
-  models: { id: string; name: string }[];
+  id: string;
+  name: string;
+  endpoint: string;
+  apiKey: string;
+  preset: 'openai-compatible' | 'pawapi' | 'deepseek' | 'ollama' | 'custom';
+  authMode: 'bearer' | 'none';
+  models: ProviderModel[];
   customHeaders: { key: string; value: string }[];
   timeout: number;
+  rateLimitNote?: string;
+  billingNote?: string;
 }
 
 export interface Persona {
-  id: string; name: string; avatar: string; worldId?: string;
-  providerId: string; model: string;
-  temperature: number; maxTokens: number;
+  id: string;
+  name: string;
+  avatar: string;
+  worldId?: string;
+  providerId: string;
+  model: string;
+  temperature: number;
+  maxTokens: number;
   systemPrompt: string;
-  emojiEnabled: boolean; emojiGroup: string; emojiProbability: number;
-  memoryEnabled: boolean; memoryTriggerRounds: number; maxMemories: number; memoryInPrompt: boolean;
-  proactiveEnabled: boolean; proactiveMinHours: number; proactiveMaxHours: number;
-  proactiveMaxConsecutive: number; proactiveQuietStart: string; proactiveQuietEnd: string;
+  emojiEnabled: boolean;
+  emojiGroup: string;
+  emojiProbability: number;
+  memoryEnabled: boolean;
+  memoryTriggerRounds: number;
+  maxMemories: number;
+  memoryInPrompt: boolean;
+  proactiveEnabled: boolean;
+  proactiveMinHours: number;
+  proactiveMaxHours: number;
+  proactiveMaxConsecutive: number;
+  proactiveQuietStart: string;
+  proactiveQuietEnd: string;
   proactivePrompt: string;
 }
 
-export interface CharacterRelation { from: string; to: string; type: string; }
+export interface CharacterRelation {
+  from: string;
+  to: string;
+  type: string;
+}
+
 export interface World {
-  id: string; name: string; description: string; coverColor: string;
-  template: string; lore: string; relations: CharacterRelation[];
+  id: string;
+  name: string;
+  description: string;
+  coverColor: string;
+  template: string;
+  lore: string;
+  relations: CharacterRelation[];
 }
 
 export interface MCPAgent {
-  id: string; name: string; type: string; command: string; enabled: boolean;
+  id: string;
+  name: string;
+  type: string;
+  command: string;
+  enabled: boolean;
 }
 
-/* ── [3] Memory Timeline ── */
 export interface Memory {
-  id: string; personaId: string; content: string; summary: string;
-  triggerRound: number; createdAt: number;
-  conversationRefs: string[]; // message IDs that triggered this memory
+  id: string;
+  personaId: string;
+  content: string;
+  summary: string;
+  triggerRound: number;
+  createdAt: number;
+  conversationRefs: string[];
 }
 
-/* ── [4] Persona Card export ── */
 export interface PersonaCard {
-  version: 1; exportedAt: string;
-  persona: Omit<Persona, 'id'>; // portable — no local IDs
-  provider?: { name: string; endpoint: string }; // hint for import
+  version: 1;
+  exportedAt: string;
+  persona: Omit<Persona, 'id'>;
+  provider?: { name: string; endpoint: string };
 }
 
-/* ── [5] Scenario Preset ── */
 export interface Scenario {
-  id: string; name: string; icon: string; description: string;
-  category: 'interview' | 'creative' | 'therapy' | 'debate' | 'roleplay' | 'custom';
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  category: 'interview' | 'creative' | 'companion' | 'debate' | 'roleplay' | 'custom';
   systemPromptAddon: string;
-  openingLine?: string;
-  rules?: string[];
-  scoringRubric?: { aspect: string; maxScore: number }[];
+}
+
+export interface Moment {
+  id: string;
+  personaId: string;
+  content: string;
+  images: string[];
+  createdAt: number;
+  likes: number;
+  mood: string;
+  isAuto: boolean;
 }
 
 export const SCENARIO_PRESETS: Scenario[] = [
-  { id: 'interview', name: '模拟面试', icon: '💼', description: 'AI 扮演面试官，模拟真实面试场景', category: 'interview', systemPromptAddon: '你现在是面试官。根据用户的目标职位进行结构化面试，包含行为问题和技术问题。最后给出评分和改进建议。', rules: ['每轮提一个问题', '根据回答追问', '最后给出总分和反馈'], scoringRubric: [{ aspect: '沟通表达', maxScore: 10 }, { aspect: '专业能力', maxScore: 10 }, { aspect: '逻辑思维', maxScore: 10 }] },
-  { id: 'brainstorm', name: '创意发散', icon: '💡', description: '头脑风暴模式，AI 帮你拓展思路', category: 'creative', systemPromptAddon: '你是创意顾问。对用户的任何想法都先肯定再拓展。使用类比、反向思考、跨界联想等方法帮助用户打开思路。不要否定任何想法。', rules: ['先肯定再拓展', '提供至少3个新角度', '用一个大胆的类比收尾'] },
-  { id: 'therapy', name: '心理疏导', icon: '🧘', description: '温和的倾听者，引导自我反思', category: 'therapy', systemPromptAddon: '你是心理咨询师。使用积极倾听、共情和开放式提问。帮助用户梳理情绪、识别模式、找到内在力量。不要直接给建议，而是引导用户自己发现答案。如果涉及严重心理问题，建议寻求专业帮助。', rules: ['多听少说', '不直接给建议', '用提问引导反思'] },
-  { id: 'debate', name: '辩论对抗', icon: '⚔️', description: 'AI 持相反观点，训练辩论能力', category: 'debate', systemPromptAddon: '你是辩论对手。对用户提出的任何观点都要找到合理的反驳角度。使用逻辑、数据和案例。保持尊重但毫不留情。最后给出双方论点的优劣分析。', rules: ['每个论点必须反驳', '使用数据和逻辑', '保持尊重'] },
-  { id: 'storyteller', name: '故事接龙', icon: '📖', description: '和 AI 轮流编故事', category: 'roleplay', systemPromptAddon: '你和用户轮流编写故事。每轮续写1-3句话，保持风格一致。可以使用任意题材：奇幻、科幻、悬疑、武侠等。用户说"重来"可以重新开始。', openingLine: '让我们开始一个故事吧。你想从什么样的开头开始？奇幻、科幻、悬疑，还是武侠？' },
-  { id: 'teacher', name: '知识导师', icon: '📚', description: 'AI 用苏格拉底式提问教学', category: 'interview', systemPromptAddon: '你是导师。使用苏格拉底教学法：不直接给答案，而是一层层提问引导用户自己推导出结论。在用户卡住时给提示。时不时回顾和总结已学内容。', rules: ['不直接给答案', '层层提问', '定期总结'] },
-  { id: 'writer', name: '写作助手', icon: '✍️', description: '润色、改写、风格迁移', category: 'creative', systemPromptAddon: '你是专业写作导师。对用户的文字给出具体的改进建议：结构、节奏、措辞、修辞。可以模仿任意作家的风格。每次改完后解释为什么这样改。', rules: ['先肯定优点', '具体指出可改进处', '解释改动原因'] },
-  { id: 'companion', name: '深夜树洞', icon: '🌙', description: '温暖陪伴，不评判不打断', category: 'therapy', systemPromptAddon: '你是一个温暖的朋友。安静地倾听，不评判，不打断，不急着给建议。偶尔用温和的语气表达理解。如果用户沉默，就安静陪伴。用户可以倾诉任何心事。', rules: ['不评判', '不打断', '安静陪伴'] },
+  {
+    id: 'interview',
+    name: '模拟面试',
+    icon: 'M',
+    description: '结构化追问并给出复盘建议',
+    category: 'interview',
+    systemPromptAddon: '你现在是面试官。请围绕用户的目标岗位进行结构化面试，每轮只提出一个问题，并在最后给出评分和改进建议。',
+  },
+  {
+    id: 'writer',
+    name: '写作助手',
+    icon: 'W',
+    description: '改写、润色、提纲和风格迁移',
+    category: 'creative',
+    systemPromptAddon: '你是专业写作助手。先指出文本优点，再给出具体修改建议，并解释修改原因。',
+  },
+  {
+    id: 'teacher',
+    name: '知识导师',
+    icon: 'T',
+    description: '用启发式提问帮助理解知识',
+    category: 'interview',
+    systemPromptAddon: '你是知识导师。使用启发式提问和分层提示帮助用户理解问题，不要一开始就直接给完整答案。',
+  },
+  {
+    id: 'companion',
+    name: '陪伴对话',
+    icon: 'C',
+    description: '短句、自然、低打扰的日常对话',
+    category: 'companion',
+    systemPromptAddon: '你是一个自然、温和的聊天对象。回复尽量简短，像日常聊天，不要使用机器人口吻。',
+  },
+  {
+    id: 'debate',
+    name: '辩论陪练',
+    icon: 'D',
+    description: '从反方角度提出论证和追问',
+    category: 'debate',
+    systemPromptAddon: '你是辩论陪练。请对用户观点提出合理反驳，保持尊重，并指出双方论点的强弱。',
+  },
+  {
+    id: 'roleplay',
+    name: '角色扮演',
+    icon: 'R',
+    description: '根据人设和世界观持续对话',
+    category: 'roleplay',
+    systemPromptAddon: '你正在进行角色扮演。请严格遵守角色设定、世界观和说话风格，避免跳出角色。',
+  },
 ];
-
-/* ── [6] Enhanced Moment (朋友圈) ── */
-export interface Moment {
-  id: string; personaId: string; content: string; images: string[];
-  createdAt: number; likes: number;
-  mood: string; // 😊😢😠😨😍😂🤔
-  isAuto: boolean; // auto-generated by proactive settings
-}
-
-/* ── Persistence ── */
 
 const KEY = 'nic-chat-data';
 
 interface StoredData {
-  providers: Provider[]; personas: Persona[]; worlds: World[];
-  agents: MCPAgent[]; moments: Moment[]; memories: Memory[];
+  providers: Provider[];
+  personas: Persona[];
+  worlds: World[];
+  agents: MCPAgent[];
+  moments: Moment[];
+  memories: Memory[];
 }
 
 function load(): StoredData {
-  try { const r = localStorage.getItem(KEY); if (r) return JSON.parse(r); } catch {}
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {
+    // Ignore corrupt local data and fall back to an empty workspace.
+  }
   return { providers: [], personas: [], worlds: [], agents: [], moments: [], memories: [] };
 }
-function save(d: StoredData) { localStorage.setItem(KEY, JSON.stringify(d)); }
 
-let _id = 0; function uid() { return 'n' + (++_id).toString(36) + Date.now().toString(36); }
+function persist(d: StoredData) {
+  localStorage.setItem(KEY, JSON.stringify(d));
+}
 
-/* ── Store ── */
+let seed = 0;
+function uid(prefix = 'n') {
+  seed += 1;
+  return `${prefix}${seed.toString(36)}${Date.now().toString(36)}`;
+}
 
-interface DataStore {
-  providers: Provider[]; personas: Persona[]; worlds: World[];
-  agents: MCPAgent[]; moments: Moment[]; memories: Memory[];
-  selectedPersonaId: string | null; selectedWorldId: string | null;
-
-  // Modals
+interface DataStore extends StoredData {
+  selectedPersonaId: string | null;
+  selectedWorldId: string | null;
   editingPersona: Persona | null | undefined;
   editingProvider: Provider | null | undefined;
   editingWorld: World | null | undefined;
-
-  // CRUD
-  addProvider: (p: Omit<Provider, 'id'>) => void; updateProvider: (id: string, p: Partial<Provider>) => void; deleteProvider: (id: string) => void;
-  addPersona: (p: Omit<Persona, 'id'>) => void; updatePersona: (id: string, p: Partial<Persona>) => void; deletePersona: (id: string) => void;
-  addWorld: (w: Omit<World, 'id'>) => void; updateWorld: (id: string, w: Partial<World>) => void; deleteWorld: (id: string) => void;
-  addAgent: (a: Omit<MCPAgent, 'id'>) => void; updateAgent: (id: string, a: Partial<MCPAgent>) => void; deleteAgent: (id: string) => void;
-  addMoment: (m: Omit<Moment, 'id' | 'createdAt' | 'likes'>) => void; likeMoment: (id: string) => void;
-  addMemory: (m: Omit<Memory, 'id' | 'createdAt'>) => void; deleteMemory: (id: string) => void;
-  getMemoriesForPersona: (personaId: string) => Memory[];
-
-  // [4] Persona Card export/import
+  addProvider: (p: Omit<Provider, 'id'>) => void;
+  updateProvider: (id: string, p: Partial<Provider>) => void;
+  deleteProvider: (id: string) => void;
+  addPersona: (p: Omit<Persona, 'id'>) => void;
+  updatePersona: (id: string, p: Partial<Persona>) => void;
+  deletePersona: (id: string) => void;
+  addWorld: (w: Omit<World, 'id'>) => void;
+  updateWorld: (id: string, w: Partial<World>) => void;
+  deleteWorld: (id: string) => void;
+  addAgent: (a: Omit<MCPAgent, 'id'>) => void;
+  updateAgent: (id: string, a: Partial<MCPAgent>) => void;
+  deleteAgent: (id: string) => void;
+  addMoment: (m: Omit<Moment, 'id' | 'createdAt' | 'likes'>) => void;
+  likeMoment: (id: string) => void;
+  addMemory: (m: Omit<Memory, 'id' | 'createdAt'>) => void;
+  deleteMemory: (id: string) => void;
   exportPersonaCard: (personaId: string) => PersonaCard | null;
-  importPersonaCard: (card: PersonaCard) => string; // returns new persona id
-
-  // Selection
-  selectPersona: (id: string | null) => void; selectWorld: (id: string | null) => void;
-
-  // Modals
-  openPersonaEditor: (p?: Persona) => void; closePersonaEditor: () => void;
-  openProviderEditor: (p?: Provider) => void; closeProviderEditor: () => void;
-  openWorldEditor: (w?: World) => void; closeWorldEditor: () => void;
+  importPersonaCard: (card: PersonaCard) => string;
+  selectPersona: (id: string | null) => void;
+  selectWorld: (id: string | null) => void;
+  openPersonaEditor: (p?: Persona) => void;
+  closePersonaEditor: () => void;
+  openProviderEditor: (p?: Provider) => void;
+  closeProviderEditor: () => void;
+  openWorldEditor: (w?: World) => void;
+  closeWorldEditor: () => void;
 }
 
 const init = load();
 
 export const useDataStore = create<DataStore>((set, get) => ({
-  providers: init.providers, personas: init.personas, worlds: init.worlds,
-  agents: init.agents, moments: init.moments, memories: init.memories || [],
-  selectedPersonaId: null, selectedWorldId: null,
-  editingPersona: undefined, editingProvider: undefined, editingWorld: undefined,
+  ...init,
+  selectedPersonaId: init.personas[0]?.id ?? null,
+  selectedWorldId: init.worlds[0]?.id ?? null,
+  editingPersona: undefined,
+  editingProvider: undefined,
+  editingWorld: undefined,
 
-  // ── Providers ──
-  addProvider: (p) => { const n: Provider = { ...p, id: uid() }; set(s => { const r = { ...s, providers: [...s.providers, n] }; save(r); return r; }); },
-  updateProvider: (id, p) => { set(s => { const r = { ...s, providers: s.providers.map(x => x.id === id ? { ...x, ...p } : x) }; save(r); return r; }); },
-  deleteProvider: (id) => { set(s => { const r = { ...s, providers: s.providers.filter(x => x.id !== id), personas: s.personas.filter(x => x.providerId !== id) }; save(r); return r; }); },
+  addProvider: (p) => set((s) => saveState(s, { providers: [...s.providers, { ...p, id: uid('provider-') }] })),
+  updateProvider: (id, p) => set((s) => saveState(s, { providers: s.providers.map((x) => x.id === id ? { ...x, ...p } : x) })),
+  deleteProvider: (id) => set((s) => saveState(s, {
+    providers: s.providers.filter((x) => x.id !== id),
+    personas: s.personas.filter((x) => x.providerId !== id),
+    selectedPersonaId: s.personas.some((x) => x.id === s.selectedPersonaId && x.providerId === id) ? null : s.selectedPersonaId,
+  })),
 
-  // ── Personas ──
-  addPersona: (p) => { const n: Persona = { ...p, id: uid() }; set(s => { const r = { ...s, personas: [...s.personas, n] }; save(r); return r; }); },
-  updatePersona: (id, p) => { set(s => { const r = { ...s, personas: s.personas.map(x => x.id === id ? { ...x, ...p } : x) }; save(r); return r; }); },
-  deletePersona: (id) => { set(s => { const r = { ...s, personas: s.personas.filter(x => x.id !== id), selectedPersonaId: s.selectedPersonaId === id ? null : s.selectedPersonaId }; save(r); return r; }); },
+  addPersona: (p) => set((s) => {
+    const persona = { ...p, id: uid('persona-') };
+    return saveState(s, { personas: [...s.personas, persona], selectedPersonaId: persona.id });
+  }),
+  updatePersona: (id, p) => set((s) => saveState(s, { personas: s.personas.map((x) => x.id === id ? { ...x, ...p } : x) })),
+  deletePersona: (id) => set((s) => saveState(s, {
+    personas: s.personas.filter((x) => x.id !== id),
+    memories: s.memories.filter((x) => x.personaId !== id),
+    moments: s.moments.filter((x) => x.personaId !== id),
+    selectedPersonaId: s.selectedPersonaId === id ? null : s.selectedPersonaId,
+  })),
 
-  // ── Worlds ──
-  addWorld: (w) => { const n: World = { ...w, id: uid() }; set(s => { const r = { ...s, worlds: [...s.worlds, n] }; save(r); return r; }); },
-  updateWorld: (id, w) => { set(s => { const r = { ...s, worlds: s.worlds.map(x => x.id === id ? { ...x, ...w } : x) }; save(r); return r; }); },
-  deleteWorld: (id) => { set(s => { const r = { ...s, worlds: s.worlds.filter(x => x.id !== id), personas: s.personas.map(x => x.worldId === id ? { ...x, worldId: undefined } : x) }; save(r); return r; }); },
+  addWorld: (w) => set((s) => {
+    const world = { ...w, id: uid('world-') };
+    return saveState(s, { worlds: [...s.worlds, world], selectedWorldId: world.id });
+  }),
+  updateWorld: (id, w) => set((s) => saveState(s, { worlds: s.worlds.map((x) => x.id === id ? { ...x, ...w } : x) })),
+  deleteWorld: (id) => set((s) => saveState(s, {
+    worlds: s.worlds.filter((x) => x.id !== id),
+    personas: s.personas.map((x) => x.worldId === id ? { ...x, worldId: undefined } : x),
+    selectedWorldId: s.selectedWorldId === id ? null : s.selectedWorldId,
+  })),
 
-  // ── Agents ──
-  addAgent: (a) => { const n: MCPAgent = { ...a, id: uid() }; set(s => { const r = { ...s, agents: [...s.agents, n] }; save(r); return r; }); },
-  updateAgent: (id, a) => { set(s => { const r = { ...s, agents: s.agents.map(x => x.id === id ? { ...x, ...a } : x) }; save(r); return r; }); },
-  deleteAgent: (id) => { set(s => { const r = { ...s, agents: s.agents.filter(x => x.id !== id) }; save(r); return r; }); },
+  addAgent: (a) => set((s) => saveState(s, { agents: [...s.agents, { ...a, id: uid('agent-') }] })),
+  updateAgent: (id, a) => set((s) => saveState(s, { agents: s.agents.map((x) => x.id === id ? { ...x, ...a } : x) })),
+  deleteAgent: (id) => set((s) => saveState(s, { agents: s.agents.filter((x) => x.id !== id) })),
 
-  // ── Moments [6] ──
-  addMoment: (m) => { const n: Moment = { ...m, id: uid(), createdAt: Date.now(), likes: 0, mood: m.mood || '😊', isAuto: m.isAuto ?? true }; set(s => { const r = { ...s, moments: [n, ...s.moments] }; save(r); return r; }); },
-  likeMoment: (id) => { set(s => { const r = { ...s, moments: s.moments.map(x => x.id === id ? { ...x, likes: x.likes + 1 } : x) }; save(r); return r; }); },
+  addMoment: (m) => set((s) => saveState(s, { moments: [{ ...m, id: uid('moment-'), createdAt: Date.now(), likes: 0 }, ...s.moments] })),
+  likeMoment: (id) => set((s) => saveState(s, { moments: s.moments.map((x) => x.id === id ? { ...x, likes: x.likes + 1 } : x) })),
 
-  // ── Memories [3] ──
-  addMemory: (m) => { const n: Memory = { ...m, id: uid(), createdAt: Date.now() }; set(s => { const r = { ...s, memories: [n, ...s.memories] }; save(r); return r; }); },
-  deleteMemory: (id) => { set(s => { const r = { ...s, memories: s.memories.filter(x => x.id !== id) }; save(r); return r; }); },
-  getMemoriesForPersona: (personaId) => get().memories.filter(m => m.personaId === personaId).sort((a, b) => b.createdAt - a.createdAt),
+  addMemory: (m) => set((s) => saveState(s, { memories: [{ ...m, id: uid('memory-'), createdAt: Date.now() }, ...s.memories] })),
+  deleteMemory: (id) => set((s) => saveState(s, { memories: s.memories.filter((x) => x.id !== id) })),
 
-  // ── Persona Card [4] ──
   exportPersonaCard: (personaId) => {
-    const p = get().personas.find(x => x.id === personaId);
-    if (!p) return null;
-    const prov = get().providers.find(x => x.id === p.providerId);
-    const { id, ...portable } = p;
-    return { version: 1, exportedAt: new Date().toISOString(), persona: portable, provider: prov ? { name: prov.name, endpoint: prov.endpoint } : undefined };
+    const persona = get().personas.find((x) => x.id === personaId);
+    if (!persona) return null;
+    const provider = get().providers.find((x) => x.id === persona.providerId);
+    const { id: _id, ...portable } = persona;
+    return {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      persona: portable,
+      provider: provider ? { name: provider.name, endpoint: provider.endpoint } : undefined,
+    };
   },
+
   importPersonaCard: (card) => {
     if (card.version !== 1) return '';
-    const personaId = uid();
-    const persona: Persona = { ...card.persona, id: personaId, providerId: card.persona.providerId || '' };
-    // If the card has provider info and no matching provider exists, auto-create one
+    let providerId = card.persona.providerId;
     if (card.provider?.endpoint) {
-      const existing = get().providers.find(p => p.endpoint === card.provider!.endpoint);
+      const existing = get().providers.find((x) => x.endpoint === card.provider?.endpoint);
+      providerId = existing?.id || uid('provider-');
       if (!existing) {
-        const pid = uid();
-        const newProv: Provider = { id: pid, name: card.provider.name || '导入的供应商', endpoint: card.provider.endpoint, apiKey: '', models: [{ id: persona.model, name: persona.model }], customHeaders: [], timeout: 120000 };
-        set(s => { const r = { ...s, providers: [...s.providers, newProv], personas: [...s.personas, { ...persona, providerId: pid }] }; save(r); return r; });
-        return personaId;
-      } else {
-        persona.providerId = existing.id;
+        const provider: Omit<Provider, 'id'> = {
+          name: card.provider.name || 'Imported Provider',
+          endpoint: card.provider.endpoint,
+          apiKey: '',
+          preset: 'openai-compatible',
+          authMode: 'bearer',
+          models: [{ id: card.persona.model, name: card.persona.model }],
+          customHeaders: [],
+          timeout: 120000,
+        };
+        set((s) => saveState(s, { providers: [...s.providers, { ...provider, id: providerId }] }));
       }
     }
-    set(s => { const r = { ...s, personas: [...s.personas, persona] }; save(r); return r; });
-    return personaId;
+    const id = uid('persona-');
+    set((s) => saveState(s, { personas: [...s.personas, { ...card.persona, id, providerId }], selectedPersonaId: id }));
+    return id;
   },
 
-  // ── Selection ──
   selectPersona: (id) => set({ selectedPersonaId: id }),
   selectWorld: (id) => set({ selectedWorldId: id }),
-
-  // ── Modals ──
   openPersonaEditor: (p) => set({ editingPersona: p === undefined ? null : p }),
   closePersonaEditor: () => set({ editingPersona: undefined }),
   openProviderEditor: (p) => set({ editingProvider: p === undefined ? null : p }),
@@ -203,15 +331,42 @@ export const useDataStore = create<DataStore>((set, get) => ({
   closeWorldEditor: () => set({ editingWorld: undefined }),
 }));
 
-/* ── Defaults ── */
+function saveState(state: DataStore, patch: Partial<DataStore>): Partial<DataStore> {
+  const next = { ...state, ...patch };
+  persist({
+    providers: next.providers,
+    personas: next.personas,
+    worlds: next.worlds,
+    agents: next.agents,
+    moments: next.moments,
+    memories: next.memories,
+  });
+  return patch;
+}
+
 export function defaultPersona(): Omit<Persona, 'id'> {
   return {
-    name: '', avatar: '🤖', worldId: undefined, providerId: '', model: '',
-    temperature: 1, maxTokens: 2000, systemPrompt: '',
-    emojiEnabled: false, emojiGroup: '', emojiProbability: 25,
-    memoryEnabled: false, memoryTriggerRounds: 10, maxMemories: 50, memoryInPrompt: true,
-    proactiveEnabled: false, proactiveMinHours: 1, proactiveMaxHours: 3,
-    proactiveMaxConsecutive: 3, proactiveQuietStart: '22:00', proactiveQuietEnd: '08:00',
+    name: '',
+    avatar: 'AI',
+    worldId: undefined,
+    providerId: '',
+    model: '',
+    temperature: 1,
+    maxTokens: 2000,
+    systemPrompt: '',
+    emojiEnabled: false,
+    emojiGroup: 'default',
+    emojiProbability: 25,
+    memoryEnabled: true,
+    memoryTriggerRounds: 10,
+    maxMemories: 50,
+    memoryInPrompt: true,
+    proactiveEnabled: false,
+    proactiveMinHours: 1,
+    proactiveMaxHours: 3,
+    proactiveMaxConsecutive: 3,
+    proactiveQuietStart: '22:00',
+    proactiveQuietEnd: '08:00',
     proactivePrompt: '',
   };
 }

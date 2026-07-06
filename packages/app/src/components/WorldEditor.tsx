@@ -1,50 +1,66 @@
 import { useState } from 'react';
 import type { World } from '../store/data';
 
-interface Props { world: World | null; onSave: (d: Omit<World, 'id'>) => void; onCancel: () => void; }
+interface Props {
+  world: World | null;
+  onSave: (data: Omit<World, 'id'>) => void;
+  onCancel: () => void;
+}
 
-const COLORS = ['#6366F1','#8B5CF6','#EC4899','#F43F5E','#F97316','#EAB308','#22C55E','#14B8A6','#3B82F6','#64748B'];
+const COLORS = ['#6366F1', '#0EA5E9', '#14B8A6', '#22C55E', '#EAB308', '#F97316', '#F43F5E', '#EC4899', '#8B5CF6', '#64748B'];
 
 export function WorldEditor({ world, onSave, onCancel }: Props) {
   const [name, setName] = useState(world?.name || '');
-  const [description, setDesc] = useState(world?.description || '');
-  const [coverColor, setColor] = useState(world?.coverColor || COLORS[0]);
+  const [description, setDescription] = useState(world?.description || '');
+  const [lore, setLore] = useState(world?.lore || '');
+  const [coverColor, setCoverColor] = useState(world?.coverColor || COLORS[0]);
 
   return (
-    <div className="fixed inset-0 z-[70] bg-black/35 backdrop-blur flex items-center justify-center" onClick={onCancel}>
-      <div className="bg-white border border-slate-200 rounded-2xl w-[440px] shadow-xl" onClick={e => e.stopPropagation()}>
-        {/* 标题栏 */}
-        <div className="flex justify-between items-center px-5 py-3.5 border-b border-slate-200">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/35 backdrop-blur" onClick={onCancel}>
+      <div className="w-[500px] rounded-2xl border border-slate-200 bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3.5">
           <h3 className="m-0 text-[15px] font-bold text-slate-900">{world?.id ? '编辑世界观' : '新建世界观'}</h3>
-          <button onClick={onCancel} className="bg-transparent border-none text-slate-400 text-xl cursor-pointer hover:text-slate-600 transition-colors">✕</button>
+          <button onClick={onCancel} className="cursor-pointer border-none bg-transparent text-xl text-slate-400 transition-colors hover:text-slate-600">x</button>
         </div>
 
-        <div className="p-5 flex flex-col gap-2.5">
+        <div className="flex flex-col gap-2.5 p-5">
           <label className="field-label">名称</label>
-          <input className="input-field w-full" value={name} onChange={e => setName(e.target.value)} placeholder="世界观名称" />
+          <input className="input-field w-full" value={name} onChange={(event) => setName(event.target.value)} placeholder="例如 暗河、未来都市、校园社团" />
 
           <label className="field-label">描述</label>
-          <textarea className="input-field w-full min-h-[80px]" value={description} onChange={e => setDesc(e.target.value)} placeholder="描述这个世界观的背景..." rows={4} />
+          <textarea className="input-field min-h-[70px] w-full" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="一句话描述这个世界观的背景" rows={3} />
+
+          <label className="field-label">世界观补充</label>
+          <textarea className="input-field min-h-[100px] w-full text-xs" value={lore} onChange={(event) => setLore(event.target.value)} placeholder="可放入势力关系、背景规则、重要事件等" rows={5} />
 
           <label className="field-label">主题色</label>
           <div className="flex gap-1.5">
-            {COLORS.map(c => (
-              <button key={c} onClick={() => setColor(c)}
-                className="w-7 h-7 rounded-full cursor-pointer transition-all"
+            {COLORS.map((color) => (
+              <button
+                key={color}
+                onClick={() => setCoverColor(color)}
+                className="h-7 w-7 cursor-pointer rounded-full transition-all"
                 style={{
-                  background: c,
-                  border: coverColor === c ? '3px solid #1E293B' : '3px solid transparent',
-                  transform: coverColor === c ? 'scale(1.15)' : 'scale(1)',
+                  background: color,
+                  border: coverColor === color ? '3px solid #1E293B' : '3px solid transparent',
+                  transform: coverColor === color ? 'scale(1.15)' : 'scale(1)',
                 }}
               />
             ))}
           </div>
         </div>
 
-        {/* 底部按钮 */}
-        <div className="px-5 py-3 border-t border-slate-200 flex justify-end gap-2">
+        <div className="flex justify-end gap-2 border-t border-slate-200 px-5 py-3">
           <button onClick={onCancel} className="btn-secondary">取消</button>
-          <button onClick={() => { if (!name.trim()) return; onSave({ name: name.trim(), description, coverColor, template: world?.template || '', lore: world?.lore || '', relations: world?.relations || [] }); }} className="btn-primary">保存</button>
+          <button
+            onClick={() => {
+              if (!name.trim()) return;
+              onSave({ name: name.trim(), description, coverColor, template: world?.template || '', lore, relations: world?.relations || [] });
+            }}
+            className="btn-primary"
+          >
+            保存
+          </button>
         </div>
       </div>
     </div>

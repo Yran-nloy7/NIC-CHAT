@@ -2,178 +2,229 @@ import { useState } from 'react';
 import type { Persona } from '../store/data';
 import { useDataStore } from '../store/data';
 
-interface Props { persona: Persona | null; onSave: (d: Omit<Persona, 'id'>) => void; onCancel: () => void; }
+interface Props {
+  persona: Persona | null;
+  onSave: (data: Omit<Persona, 'id'>) => void;
+  onCancel: () => void;
+}
 
-const AVATARS = ['🤖','🌧️','⚔️','🌸','🔥','💀','🦊','🐉','👤','🎭','🧙','🗡️','🛡️','📜','✨','💫'];
+const AVATARS = ['AI', 'TA', 'ME', '01', '02', '03', 'RP', 'QA', 'DEV', 'DOC'];
 
 export function PersonaEditor({ persona, onSave, onCancel }: Props) {
-  const providers = useDataStore.getState().providers;
-  const worlds = useDataStore.getState().worlds;
+  const providers = useDataStore((s) => s.providers);
+  const worlds = useDataStore((s) => s.worlds);
   const [name, setName] = useState(persona?.name || '');
-  const [avatar, setAvatar] = useState(persona?.avatar || '🤖');
+  const [avatar, setAvatar] = useState(persona?.avatar || 'AI');
   const [providerId, setProviderId] = useState(persona?.providerId || providers[0]?.id || '');
   const [model, setModel] = useState(persona?.model || providers[0]?.models[0]?.id || '');
-  const [temperature, setTemp] = useState(persona?.temperature ?? 1);
-  const [maxTokens, setMax] = useState(persona?.maxTokens ?? 2000);
-  const [systemPrompt, setSys] = useState(persona?.systemPrompt || '');
+  const [temperature, setTemperature] = useState(persona?.temperature ?? 1);
+  const [maxTokens, setMaxTokens] = useState(persona?.maxTokens ?? 2000);
+  const [systemPrompt, setSystemPrompt] = useState(persona?.systemPrompt || '');
   const [worldId, setWorldId] = useState(persona?.worldId || '');
-  const [emojiEnabled, setEmoji] = useState(persona?.emojiEnabled ?? false);
-  const [emojiProb, setEmojiProb] = useState(persona?.emojiProbability ?? 25);
-  const [memEnabled, setMem] = useState(persona?.memoryEnabled ?? false);
-  const [memRounds, setMemRounds] = useState(persona?.memoryTriggerRounds ?? 10);
-  const [maxMems, setMaxMems] = useState(persona?.maxMemories ?? 50);
-  const [memInPrompt, setMemPrompt] = useState(persona?.memoryInPrompt ?? true);
-  const [proEnabled, setPro] = useState(persona?.proactiveEnabled ?? false);
-  const [proMinH, setProMin] = useState(persona?.proactiveMinHours ?? 1);
-  const [proMaxH, setProMax] = useState(persona?.proactiveMaxHours ?? 3);
-  const [proMaxC, setProMaxC] = useState(persona?.proactiveMaxConsecutive ?? 3);
-  const [proQuietS, setProQS] = useState(persona?.proactiveQuietStart ?? '22:00');
-  const [proQuietE, setProQE] = useState(persona?.proactiveQuietEnd ?? '08:00');
-  const [proPrompt, setProP] = useState(persona?.proactivePrompt || '');
+  const [emojiEnabled, setEmojiEnabled] = useState(persona?.emojiEnabled ?? false);
+  const [emojiProbability, setEmojiProbability] = useState(persona?.emojiProbability ?? 25);
+  const [memoryEnabled, setMemoryEnabled] = useState(persona?.memoryEnabled ?? true);
+  const [memoryTriggerRounds, setMemoryTriggerRounds] = useState(persona?.memoryTriggerRounds ?? 10);
+  const [maxMemories, setMaxMemories] = useState(persona?.maxMemories ?? 50);
+  const [memoryInPrompt, setMemoryInPrompt] = useState(persona?.memoryInPrompt ?? true);
+  const [proactiveEnabled, setProactiveEnabled] = useState(persona?.proactiveEnabled ?? false);
+  const [proactiveMinHours, setProactiveMinHours] = useState(persona?.proactiveMinHours ?? 1);
+  const [proactiveMaxHours, setProactiveMaxHours] = useState(persona?.proactiveMaxHours ?? 3);
+  const [proactiveMaxConsecutive, setProactiveMaxConsecutive] = useState(persona?.proactiveMaxConsecutive ?? 3);
+  const [proactiveQuietStart, setProactiveQuietStart] = useState(persona?.proactiveQuietStart ?? '22:00');
+  const [proactiveQuietEnd, setProactiveQuietEnd] = useState(persona?.proactiveQuietEnd ?? '08:00');
+  const [proactivePrompt, setProactivePrompt] = useState(persona?.proactivePrompt || '');
 
-  const selProv = providers.find(p => p.id === providerId);
-  const models = selProv?.models || [];
+  const selectedProvider = providers.find((p) => p.id === providerId);
+  const models = selectedProvider?.models || [];
+  const selectedModel = models.find((item) => item.id === model);
 
   const save = () => {
     if (!name.trim() || !providerId) return;
-    onSave({ name: name.trim(), avatar: avatar.trim() || '🤖', providerId, model, temperature, maxTokens, systemPrompt, worldId: worldId || undefined, emojiEnabled, emojiGroup: '', emojiProbability: emojiProb, memoryEnabled: memEnabled, memoryTriggerRounds: memRounds, maxMemories: maxMems, memoryInPrompt: memInPrompt, proactiveEnabled: proEnabled, proactiveMinHours: proMinH, proactiveMaxHours: proMaxH, proactiveMaxConsecutive: proMaxC, proactiveQuietStart: proQuietS, proactiveQuietEnd: proQuietE, proactivePrompt: proPrompt });
+    onSave({
+      name: name.trim(),
+      avatar: avatar.trim() || 'AI',
+      providerId,
+      model,
+      temperature,
+      maxTokens,
+      systemPrompt,
+      worldId: worldId || undefined,
+      emojiEnabled,
+      emojiGroup: 'default',
+      emojiProbability,
+      memoryEnabled,
+      memoryTriggerRounds,
+      maxMemories,
+      memoryInPrompt,
+      proactiveEnabled,
+      proactiveMinHours,
+      proactiveMaxHours,
+      proactiveMaxConsecutive,
+      proactiveQuietStart,
+      proactiveQuietEnd,
+      proactivePrompt,
+    });
   };
 
   return (
-    <div className="fixed inset-0 z-[70] bg-black/35 backdrop-blur flex items-center justify-center" onClick={onCancel}>
-      <div className="bg-white border border-slate-200 rounded-2xl w-[620px] max-h-[90vh] overflow-auto shadow-xl" onClick={e => e.stopPropagation()}>
-        {/* 标题栏 */}
-        <div className="flex justify-between items-center px-5 py-3.5 border-b border-slate-200">
-          <h3 className="m-0 text-base font-bold text-slate-900">{persona?.id ? '编辑角色' : '添加角色'}</h3>
-          <button onClick={onCancel} className="bg-transparent border-none text-slate-400 text-xl cursor-pointer hover:text-slate-600 transition-colors">✕</button>
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/35 backdrop-blur" onClick={onCancel}>
+      <div className="max-h-[90vh] w-[720px] overflow-auto rounded-2xl border border-slate-200 bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3.5">
+          <h3 className="m-0 text-base font-bold text-slate-900">{persona?.id ? '编辑角色 Agent' : '添加角色 Agent'}</h3>
+          <button onClick={onCancel} className="cursor-pointer border-none bg-transparent text-xl text-slate-400 transition-colors hover:text-slate-600">x</button>
         </div>
 
-        <div className="p-5 flex flex-col gap-4 overflow-auto">
-          {/* 基础信息 */}
+        <div className="flex flex-col gap-4 overflow-auto p-5">
           <Section title="基础信息">
-            <div className="flex gap-1.5 flex-wrap mb-2">
-              {AVATARS.map(a => (
-                <button key={a} onClick={() => setAvatar(a)}
-                  className={`text-xl cursor-pointer w-9 h-9 flex items-center justify-center rounded-lg transition-all ${
-                    avatar === a ? 'bg-accent/10 border-2 border-accent' : 'bg-slate-50 border border-slate-200 hover:border-slate-300'
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {AVATARS.map((item) => (
+                <button
+                  key={item}
+                  onClick={() => setAvatar(item)}
+                  className={`flex h-9 w-11 cursor-pointer items-center justify-center rounded-lg text-xs font-bold transition-all ${
+                    avatar === item ? 'border-2 border-accent bg-accent/10 text-accent' : 'border border-slate-200 bg-slate-50 hover:border-slate-300'
                   }`}
-                >{a}</button>
+                >
+                  {item}
+                </button>
               ))}
-              <input className="input-field w-16 text-lg text-center" value={avatar} onChange={e => setAvatar(e.target.value)} maxLength={4} />
+              <input className="input-field w-20 text-center text-xs font-bold" value={avatar} onChange={(event) => setAvatar(event.target.value)} maxLength={8} />
             </div>
             <label className="field-label">角色名称</label>
-            <input className="input-field w-full" value={name} onChange={e => setName(e.target.value)} placeholder="输入角色名称" />
+            <input className="input-field w-full" value={name} onChange={(event) => setName(event.target.value)} placeholder="输入角色名称" />
           </Section>
 
-          {/* 模型配置 */}
           <Section title="模型配置">
-            <div className="flex gap-2.5 mb-2">
-              <div className="flex-1">
-                <label className="field-label">服务商</label>
-                <select className="input-field w-full cursor-pointer" value={providerId} onChange={e => { setProviderId(e.target.value); const p = providers.find(pp => pp.id === e.target.value); if (p?.models.length) setModel(p.models[0].id); }}>
-                  {providers.map(p => <option key={p.id} value={p.id}>{p.name || '未命名'}</option>)}
-                  {providers.length === 0 && <option value="">无供应商</option>}
+            <div className="mb-2 grid grid-cols-2 gap-2.5">
+              <div>
+                <label className="field-label">API 网关</label>
+                <select
+                  className="input-field w-full cursor-pointer"
+                  value={providerId}
+                  onChange={(event) => {
+                    setProviderId(event.target.value);
+                    const provider = providers.find((item) => item.id === event.target.value);
+                    setModel(provider?.models[0]?.id || '');
+                  }}
+                >
+                  {providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.name || '未命名'}</option>)}
+                  {providers.length === 0 && <option value="">暂无网关</option>}
                 </select>
               </div>
-              <div className="flex-1">
+              <div>
                 <label className="field-label">模型</label>
-                <select className="input-field w-full cursor-pointer" value={model} onChange={e => setModel(e.target.value)}>
-                  {models.map(m => <option key={m.id} value={m.id}>{m.name || m.id}</option>)}
-                  {models.length === 0 && <option value="">先选择服务商</option>}
+                <select className="input-field w-full cursor-pointer" value={model} onChange={(event) => setModel(event.target.value)}>
+                  {models.map((item) => <option key={item.id} value={item.id}>{item.name || item.id}</option>)}
+                  {models.length === 0 && <option value="">先选择 API 网关</option>}
                 </select>
               </div>
             </div>
-            <div className="flex gap-2.5">
-              <div className="flex-1">
-                <label className="field-label">温度 ({temperature})</label>
-                <input className="input-field w-full" type="range" min="0" max="2" step="0.1" value={temperature} onChange={e => setTemp(parseFloat(e.target.value))} />
+
+            {selectedModel && (
+              <div className="mb-3 rounded-xl border border-slate-200 bg-white p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-slate-900">{selectedModel.name || selectedModel.id}</div>
+                    <div className="truncate font-mono text-[10px] text-slate-400">{selectedModel.id}</div>
+                  </div>
+                  <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-semibold text-accent">{billingLabel(selectedModel.billingType)}</span>
+                </div>
+                <div className="mt-2 grid grid-cols-3 gap-1 text-[10px] text-slate-500">
+                  <div>上下文：{selectedModel.contextWindow || '-'}</div>
+                  <div>输出上限：{selectedModel.maxOutput || '-'}</div>
+                  <div>能力：{selectedModel.capabilities?.join(', ') || '-'}</div>
+                  <div>输入价：{selectedModel.inputPrice || '-'}</div>
+                  <div>输出价：{selectedModel.outputPrice || '-'}</div>
+                  <div>单次价：{selectedModel.requestPrice || '-'}</div>
+                </div>
+                {selectedModel.note && <div className="mt-1 text-[10px] text-slate-400">{selectedModel.note}</div>}
               </div>
-              <div className="flex-1">
-                <label className="field-label">最大 Token</label>
-                <input className="input-field w-full" type="number" min={100} max={128000} step={100} value={maxTokens} onChange={e => setMax(parseInt(e.target.value) || 2000)} />
+            )}
+
+            <div className="grid grid-cols-2 gap-2.5">
+              <div>
+                <label className="field-label">温度 {temperature}</label>
+                <input className="input-field w-full" type="range" min="0" max="2" step="0.1" value={temperature} onChange={(event) => setTemperature(parseFloat(event.target.value))} />
+              </div>
+              <div>
+                <label className="field-label">最大输出 Token</label>
+                <input className="input-field w-full" type="number" min={100} max={selectedModel?.maxOutput || 128000} step={100} value={maxTokens} onChange={(event) => setMaxTokens(parseInt(event.target.value) || 2000)} />
               </div>
             </div>
           </Section>
 
-          {/* 表情包 */}
-          <Section title="表情包">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={emojiEnabled} onChange={e => setEmoji(e.target.checked)} className="accent-accent" />
-              <span className="field-label mb-0">启用表情包</span>
-            </label>
-            {emojiEnabled && (
-              <div className="mt-2">
-                <label className="field-label">发送概率 ({emojiProb}%)</label>
-                <input className="input-field w-full" type="range" min="0" max="100" step="5" value={emojiProb} onChange={e => setEmojiProb(parseInt(e.target.value))} />
-                <span className="text-[10px] text-slate-400">每次回复后按概率自动发送匹配情绪的表情包</span>
+          <Section title="记忆与主动消息">
+            <div className="grid grid-cols-2 gap-3">
+              <label className="flex cursor-pointer items-center gap-2">
+                <input type="checkbox" checked={memoryEnabled} onChange={(event) => setMemoryEnabled(event.target.checked)} className="accent-accent" />
+                <span className="field-label mb-0">启用长期记忆</span>
+              </label>
+              <label className="flex cursor-pointer items-center gap-2">
+                <input type="checkbox" checked={memoryInPrompt} onChange={(event) => setMemoryInPrompt(event.target.checked)} className="accent-accent" />
+                <span className="field-label mb-0">注入提示词</span>
+              </label>
+              <div>
+                <label className="field-label">触发轮数</label>
+                <input className="input-field w-full" type="number" min={1} max={100} value={memoryTriggerRounds} onChange={(event) => setMemoryTriggerRounds(parseInt(event.target.value) || 10)} />
               </div>
-            )}
-          </Section>
-
-          {/* 记忆设置 */}
-          <Section title="记忆设置">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={memEnabled} onChange={e => setMem(e.target.checked)} className="accent-accent" />
-              <span className="field-label mb-0">启用记忆</span>
-            </label>
-            {memEnabled && (
-              <div className="mt-2 flex flex-col gap-2">
-                <div className="flex gap-2.5">
-                  <div className="flex-1">
-                    <label className="field-label">触发轮数</label>
-                    <input className="input-field w-full" type="number" min={1} max={100} value={memRounds} onChange={e => setMemRounds(parseInt(e.target.value) || 10)} />
-                    <span className="text-[10px] text-slate-400">每累积多少轮对话后自动总结为一条记忆</span>
-                  </div>
-                  <div className="flex-1">
-                    <label className="field-label">最大记忆条数</label>
-                    <input className="input-field w-full" type="number" min={1} max={200} value={maxMems} onChange={e => setMaxMems(parseInt(e.target.value) || 50)} />
-                  </div>
-                </div>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={memInPrompt} onChange={e => setMemPrompt(e.target.checked)} className="accent-accent" />
-                  <span className="field-label mb-0">包含在提示词</span>
-                  <span className="text-[10px] text-slate-400">开启后将所有记忆注入 LLM 上下文</span>
-                </label>
+              <div>
+                <label className="field-label">最大记忆数</label>
+                <input className="input-field w-full" type="number" min={1} max={200} value={maxMemories} onChange={(event) => setMaxMemories(parseInt(event.target.value) || 50)} />
               </div>
-            )}
-          </Section>
-
-          {/* 主动消息 */}
-          <Section title="主动消息">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={proEnabled} onChange={e => setPro(e.target.checked)} className="accent-accent" />
-              <span className="field-label mb-0">启用</span>
-            </label>
-            {proEnabled && (
-              <div className="mt-2 flex flex-col gap-2">
-                <div className="text-[10px] text-slate-400">微信通道限制：只能在用户最近一次消息 24 小时内回复。</div>
-                <div className="flex gap-2.5">
-                  <div className="flex-1"><label className="field-label">最小间隔（小时）</label><input className="input-field w-full" type="number" min={0.5} max={72} step={0.5} value={proMinH} onChange={e => setProMin(parseFloat(e.target.value) || 1)} /></div>
-                  <div className="flex-1"><label className="field-label">最大间隔（小时）</label><input className="input-field w-full" type="number" min={1} max={72} step={0.5} value={proMaxH} onChange={e => setProMax(parseFloat(e.target.value) || 3)} /></div>
-                </div>
-                <div><label className="field-label">连续上限</label><input className="input-field w-full" type="number" min={1} max={20} value={proMaxC} onChange={e => setProMaxC(parseInt(e.target.value) || 3)} /><span className="text-[10px] text-slate-400">用户回消息前最多连续触发的主动消息条数</span></div>
-                <div><label className="field-label">静默时段</label><div className="flex gap-2.5 items-center"><input className="input-field flex-1" type="time" value={proQuietS} onChange={e => setProQS(e.target.value)} /><span className="text-[11px] text-slate-400">至</span><input className="input-field flex-1" type="time" value={proQuietE} onChange={e => setProQE(e.target.value)} /></div><span className="text-[10px] text-slate-400">静默时段内不会触发主动消息（支持跨午夜）</span></div>
-                <div><label className="field-label">自定义提示词</label><textarea className="input-field w-full min-h-[80px] text-xs" value={proPrompt} onChange={e => setProP(e.target.value)} rows={3} /></div>
+              <label className="flex cursor-pointer items-center gap-2">
+                <input type="checkbox" checked={proactiveEnabled} onChange={(event) => setProactiveEnabled(event.target.checked)} className="accent-accent" />
+                <span className="field-label mb-0">启用主动消息</span>
+              </label>
+              <div>
+                <label className="field-label">连续上限</label>
+                <input className="input-field w-full" type="number" min={1} max={20} value={proactiveMaxConsecutive} onChange={(event) => setProactiveMaxConsecutive(parseInt(event.target.value) || 3)} />
               </div>
-            )}
+              <div>
+                <label className="field-label">最小间隔小时</label>
+                <input className="input-field w-full" type="number" min={0.5} max={72} step={0.5} value={proactiveMinHours} onChange={(event) => setProactiveMinHours(parseFloat(event.target.value) || 1)} />
+              </div>
+              <div>
+                <label className="field-label">最大间隔小时</label>
+                <input className="input-field w-full" type="number" min={1} max={72} step={0.5} value={proactiveMaxHours} onChange={(event) => setProactiveMaxHours(parseFloat(event.target.value) || 3)} />
+              </div>
+              <div>
+                <label className="field-label">静默开始</label>
+                <input className="input-field w-full" type="time" value={proactiveQuietStart} onChange={(event) => setProactiveQuietStart(event.target.value)} />
+              </div>
+              <div>
+                <label className="field-label">静默结束</label>
+                <input className="input-field w-full" type="time" value={proactiveQuietEnd} onChange={(event) => setProactiveQuietEnd(event.target.value)} />
+              </div>
+            </div>
+            <label className="field-label mt-3">主动消息提示词</label>
+            <textarea className="input-field min-h-[70px] w-full text-xs" value={proactivePrompt} onChange={(event) => setProactivePrompt(event.target.value)} rows={3} />
           </Section>
 
-          {/* 人设提示词 */}
-          <Section title="人设提示词">
-            <textarea className="input-field w-full min-h-[140px] text-xs" value={systemPrompt} onChange={e => setSys(e.target.value)} placeholder="描述角色的身份、性格、说话风格..." rows={8} />
-          </Section>
-
-          {/* 世界观 */}
-          <Section title="所属世界观（可选）">
-            <select className="input-field w-full cursor-pointer" value={worldId} onChange={e => setWorldId(e.target.value)}>
+          <Section title="表情与世界观">
+            <div className="grid grid-cols-2 gap-3">
+              <label className="flex cursor-pointer items-center gap-2">
+                <input type="checkbox" checked={emojiEnabled} onChange={(event) => setEmojiEnabled(event.target.checked)} className="accent-accent" />
+                <span className="field-label mb-0">启用表情包</span>
+              </label>
+              <div>
+                <label className="field-label">发送概率 {emojiProbability}%</label>
+                <input className="input-field w-full" type="range" min="0" max="100" step="5" value={emojiProbability} onChange={(event) => setEmojiProbability(parseInt(event.target.value))} />
+              </div>
+            </div>
+            <label className="field-label mt-3">所属世界观</label>
+            <select className="input-field w-full cursor-pointer" value={worldId} onChange={(event) => setWorldId(event.target.value)}>
               <option value="">无</option>
-              {worlds.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+              {worlds.map((world) => <option key={world.id} value={world.id}>{world.name}</option>)}
             </select>
+          </Section>
+
+          <Section title="人设提示词">
+            <textarea className="input-field min-h-[160px] w-full text-xs" value={systemPrompt} onChange={(event) => setSystemPrompt(event.target.value)} placeholder="描述角色身份、性格、说话风格、边界规则和输出约束" rows={8} />
           </Section>
         </div>
 
-        {/* 底部按钮 */}
-        <div className="px-5 py-3.5 border-t border-slate-200 flex justify-end gap-2">
+        <div className="flex justify-end gap-2 border-t border-slate-200 px-5 py-3.5">
           <button onClick={onCancel} className="btn-secondary">取消</button>
           <button onClick={save} className="btn-primary">保存</button>
         </div>
@@ -184,9 +235,17 @@ export function PersonaEditor({ persona, onSave, onCancel }: Props) {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-slate-50 rounded-xl p-4">
-      <div className="text-[13px] font-bold text-slate-700 mb-2.5">{title}</div>
+    <div className="rounded-xl bg-slate-50 p-4">
+      <div className="mb-2.5 text-[13px] font-bold text-slate-700">{title}</div>
       {children}
     </div>
   );
+}
+
+function billingLabel(type?: string) {
+  if (type === 'token') return '按量';
+  if (type === 'request') return '按次';
+  if (type === 'quota') return '额度';
+  if (type === 'free') return '免费';
+  return '未标注';
 }

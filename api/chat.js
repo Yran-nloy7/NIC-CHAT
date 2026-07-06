@@ -1,84 +1,118 @@
-/**
- * Vercel Edge Function — NIC-CHAT API proxy
- * Routes: /api/chat | /api/scenarios | /api/memories/summarize | /api/moments/generate
- */
-
 export const config = { runtime: 'edge' };
 
-const SCENARIOS = [
-  { id: 'interview', name: '模拟面试', icon: '💼', description: 'AI 扮演面试官', category: 'interview' },
-  { id: 'brainstorm', name: '创意发散', icon: '💡', description: '头脑风暴', category: 'creative' },
-  { id: 'therapy', name: '心理疏导', icon: '🧘', description: '温和倾听引导', category: 'therapy' },
-  { id: 'debate', name: '辩论对抗', icon: '⚔️', description: 'AI 持相反观点', category: 'debate' },
-  { id: 'storyteller', name: '故事接龙', icon: '📖', description: '轮流编故事', category: 'roleplay' },
-  { id: 'teacher', name: '知识导师', icon: '📚', description: '苏格拉底式教学', category: 'interview' },
-  { id: 'writer', name: '写作助手', icon: '✍️', description: '润色改写', category: 'creative' },
-  { id: 'companion', name: '深夜树洞', icon: '🌙', description: '温暖陪伴', category: 'therapy' },
-];
-
-async function streamResponse(upstream: Response) {
-  if (!upstream.ok) return new Response(await upstream.text(), { status: upstream.status });
-  return new Response(upstream.body, { status: 200, headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' } });
+function normalizeBase(endpoint) {
+  return endpoint.replace(/\/+$/, '').replace(/\/v1$/, '');
 }
 
-async function proxyChat(body: any) {
-  const apikey = body.apiKey || '';
-  const model = body.model || 'gpt-4o';
-  const messages = body.messages || [];
-  const endpoint = body.endpoint || 'https://paw.v1chat.cc/v1';
-  const base = endpoint.replace(/\/+$/, '').replace(/\/v1$/, '');
-  const reqBody: any = { model, messages, stream: body.stream !== false };
-  if (body.temperature !== undefined) reqBody.temperature = body.temperature;
-  if (body.max_tokens) reqBody.max_tokens = body.max_tokens;
-
-  const upstream = await fetch(`${base}/v1/chat/completions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apikey}` },
-    body: JSON.stringify(reqBody),
-  });
-  return streamResponse(upstream);
+function authHeaders(apiKey, authMode) {
+  if (authMode === 'none') return {};
+  return apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
 }
 
-export default async function handler(request: Request) {
-  const url = new URL(request.url);
-  const path = url.pathname.replace('/api', '');
+function sse(event, data) {
+  return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+}
 
+export default async function handler(request) {
   if (request.method === 'OPTIONS') {
-    return new Response(null, { headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS' } });
-  }
-
-  // [5] Scenario presets
-  if (request.method === 'GET' && path === '/scenarios') {
-    return new Response(JSON.stringify({ scenarios: SCENARIOS }), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+    return new Response(null, {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      },
+    });
   }
 
   if (request.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 });
   }
 
   const body = await request.json().catch(() => ({}));
+  const authMode = body.authMode || 'bearer';
+  const apiKey = body.apiKey || process.env.AI_API_KEY || '';
+  const endpoint = body.endpoint || process.env.AI_BASE_URL || 'https://api.openai.com/v1';
+  const model = body.model || 'gpt-4o';
+  const systemPrompt = body.systemPrompt || '';
+  const messages = [
+    ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
+    ...(body.messages || []),
+  ];
 
-  if (path === '/chat') return proxyChat(body);
-
-  // [3] Memory summarization
-  if (path === '/memories/summarize') {
-    const msgs = body.messages || [];
-    const summaryPrompt = [
-      { role: 'system', content: '从对话中提取关键信息，总结为一条简洁的记忆。用中文，不超过100字。返回JSON：{ "summary": "...", "topics": ["..."] }' },
-      { role: 'user', content: msgs.map((m: any) => `${m.role}: ${m.content}`).join('\n').slice(-2000) },
-    ];
-    return proxyChat({ ...body, messages: summaryPrompt, stream: false, max_tokens: 200 });
+  if (authMode !== 'none' && !apiKey) {
+    return new Response(
+      sse('error', { message: '缺少 API Key。请在环境变量或设置中配置。' }),
+      { headers: { 'Content-Type': 'text/event-stream', 'Access-Control-Allow-Origin': '*' } },
+    );
   }
 
-  // [6] AI-generated moment
-  if (path === '/moments/generate') {
-    const { personaName, personaSystemPrompt, recentMessages } = body;
-    const prompt = [
-      { role: 'system', content: `你是${personaName || 'AI'}。${personaSystemPrompt ? '背景：' + personaSystemPrompt.slice(0, 200) : ''} 基于最近对话，发一条朋友圈。自然有个性。用中文，不超过50字。返回JSON：{ "content": "...", "mood": "😊|😢|😠|😨|😍|😂|🤔" }` },
-      { role: 'user', content: `最近对话：\n${(recentMessages || []).map((m: any) => `${m.role}: ${m.content}`).join('\n').slice(-1000)}\n\n发一条朋友圈。` },
-    ];
-    return proxyChat({ ...body, messages: prompt, stream: false, max_tokens: 150 });
+  const upstream = await fetch(`${normalizeBase(endpoint)}/v1/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(apiKey, authMode),
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      stream: true,
+      temperature: body.temperature,
+      max_tokens: body.maxTokens || body.max_tokens,
+    }),
+  });
+
+  if (!upstream.ok || !upstream.body) {
+    return new Response(
+      sse('error', { message: `模型接口错误：${upstream.status}` }),
+      { status: 200, headers: { 'Content-Type': 'text/event-stream', 'Access-Control-Allow-Origin': '*' } },
+    );
   }
 
-  return new Response(JSON.stringify({ error: 'Not found' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+  const stream = new ReadableStream({
+    async start(controller) {
+      const encoder = new TextEncoder();
+      const reader = upstream.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      controller.enqueue(encoder.encode(':connected\n\n'));
+      controller.enqueue(encoder.encode(sse('state', { state: 'answering' })));
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const payload = line.slice(6).trim();
+            if (!payload || payload === '[DONE]') continue;
+            try {
+              const parsed = JSON.parse(payload);
+              const delta = parsed.choices?.[0]?.delta;
+              if (delta?.reasoning_content) controller.enqueue(encoder.encode(sse('thinking', { text: delta.reasoning_content })));
+              if (delta?.content) controller.enqueue(encoder.encode(sse('text', { text: delta.content })));
+            } catch {
+              // Ignore malformed partial chunks.
+            }
+          }
+        }
+        controller.enqueue(encoder.encode(sse('state', { state: 'completed' })));
+      } catch (error) {
+        controller.enqueue(encoder.encode(sse('error', { message: error instanceof Error ? error.message : '网关请求失败。' })));
+      } finally {
+        reader.releaseLock();
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Access-Control-Allow-Origin': '*',
+    },
+  });
 }

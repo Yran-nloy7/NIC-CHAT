@@ -4,7 +4,7 @@
   "scripts": {
     "dev:app": "pnpm --filter @ai-chat/app dev",
     "dev:server": "pnpm --filter @ai-chat/server dev",
-    "dev": "pnpm run --parallel dev:server dev:app",
+    "dev": "pnpm -r --parallel --filter @ai-chat/server --filter @ai-chat/app dev",
     "build:sdk": "pnpm --filter @ai-chat/sdk build"
   }
 }
