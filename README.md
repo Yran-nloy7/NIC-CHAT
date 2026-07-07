@@ -71,7 +71,47 @@ Chat requests go through `/api/chat`, which converts model streams into one unif
 
 OpenClaw cannot be used directly from a static frontend page. It needs a server-side WeChat gateway or bot process that can receive WeChat messages, verify callbacks, map WeChat users to `sessionId`, and forward messages to `POST /api/openclaw/chat`.
 
-NIC-CHAT currently documents this webhook idea and keeps the UI ready for it, but a complete WeChat integration still needs:
+NIC-CHAT provides a bridge-compatible webhook:
+
+```http
+POST /api/openclaw/chat
+Content-Type: application/json
+
+{
+  "message": "你好",
+  "sessionId": "wechat:friend:user",
+  "personaId": "default"
+}
+```
+
+Response:
+
+```json
+{
+  "reply": "你好，我在。",
+  "sessionId": "wechat:friend:user",
+  "personaId": "default",
+  "model": "gpt-4o"
+}
+```
+
+You can clear bridge memory with:
+
+```http
+POST /api/openclaw/clear
+```
+
+For a wxauto-style desktop WeChat bridge, see `scripts/wechat_bridge.py`.
+
+```bash
+pip install wxauto requests
+set WECHAT_LISTEN_NAME=文件传输助手
+set NIC_CHAT_URL=http://localhost:3001/api/openclaw/chat
+set NIC_CHAT_PERSONA_ID=default
+python scripts/wechat_bridge.py
+```
+
+This is an experimental bridge like Astrbot-wechat-bot. It uses desktop WeChat automation, not an official WeChat bot API. A production-grade WeChat integration still needs:
 
 - a persistent backend service.
 - WeChat/OpenClaw callback configuration.
