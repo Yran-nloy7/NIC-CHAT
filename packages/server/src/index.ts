@@ -247,6 +247,53 @@ app.post('/api/models', async (req, res) => {
   }
 });
 
+app.get('/api/openclaw/chat', (_req, res) => {
+  res.type('html').send(`<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NIC-CHAT OpenClaw Bridge</title>
+    <style>
+      body { margin: 0; background: #f8fafc; color: #0f172a; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      main { max-width: 760px; margin: 48px auto; padding: 0 20px; }
+      section { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 22px; box-shadow: 0 1px 2px rgba(15,23,42,.04); }
+      h1 { margin: 0 0 8px; font-size: 24px; }
+      p { color: #475569; line-height: 1.7; }
+      code, pre { font-family: "SFMono-Regular", Consolas, monospace; }
+      pre { overflow: auto; background: #0f172a; color: #e2e8f0; border-radius: 10px; padding: 14px; font-size: 13px; }
+      .badge { display: inline-block; margin-bottom: 14px; padding: 4px 9px; border-radius: 999px; background: #eef2ff; color: #4f46e5; font-size: 12px; font-weight: 700; }
+      a { color: #4f46e5; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section>
+        <div class="badge">OpenClaw / wxauto Bridge</div>
+        <h1>NIC-CHAT 微信桥接接口已启用</h1>
+        <p>这个地址不是普通聊天网页，而是给微信桥接脚本调用的 <code>POST</code> 接口。浏览器直接打开时只显示说明。</p>
+        <p>桥接脚本应该向这里发送 JSON：</p>
+        <pre>POST /api/openclaw/chat
+Content-Type: application/json
+
+{
+  "message": "你好",
+  "sessionId": "wechat:friend:user",
+  "personaId": "default"
+}</pre>
+        <p>接口会返回：</p>
+        <pre>{
+  "reply": "你好，我在。",
+  "sessionId": "wechat:friend:user",
+  "personaId": "default"
+}</pre>
+        <p>查看会话：<a href="/api/openclaw/sessions">/api/openclaw/sessions</a>。健康检查：<a href="/api/health">/api/health</a>。</p>
+      </section>
+    </main>
+  </body>
+</html>`);
+});
+
 app.post('/api/openclaw/chat', async (req, res) => {
   const body = req.body || {};
   const message = String(body.message || body.text || '').trim();
